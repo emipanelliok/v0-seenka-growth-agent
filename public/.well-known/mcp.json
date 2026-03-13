@@ -1,0 +1,72 @@
+{
+  "name": "growth-agent",
+  "version": "1.0.0",
+  "description": "MCP Server para Growth Agent de Seenka - gestión de champions, mensajes, efemérides y pipeline de ventas",
+  "endpoint": "/api/mcp",
+  "authentication": {
+    "type": "session",
+    "description": "Usa la sesión de usuario autenticado"
+  },
+  "tools": [
+    {
+      "name": "list_champions",
+      "description": "Lista todos los champions con filtros opcionales"
+    },
+    {
+      "name": "get_champion",
+      "description": "Obtiene un champion específico con todos sus datos"
+    },
+    {
+      "name": "create_champion",
+      "description": "Crea un nuevo champion"
+    },
+    {
+      "name": "update_champion",
+      "description": "Actualiza datos de un champion"
+    },
+    {
+      "name": "list_pending_messages",
+      "description": "Lista mensajes pendientes en la bandeja de salida"
+    },
+    {
+      "name": "generate_message",
+      "description": "Genera un mensaje personalizado para un champion"
+    },
+    {
+      "name": "send_message",
+      "description": "Envía un mensaje a un champion"
+    },
+    {
+      "name": "approve_message",
+      "description": "Aprueba un mensaje pendiente"
+    },
+    {
+      "name": "log_interaction",
+      "description": "Registra una interacción con un champion"
+    },
+    {
+      "name": "get_interactions",
+      "description": "Obtiene historial de interacciones"
+    },
+    {
+      "name": "list_efemerides",
+      "description": "Lista las efemérides configuradas"
+    },
+    {
+      "name": "create_efemeride",
+      "description": "Crea una nueva efeméride"
+    },
+    {
+      "name": "list_clients",
+      "description": "Lista clientes de un champion"
+    },
+    {
+      "name": "add_client_to_champion",
+      "description": "Asocia un cliente a un champion"
+    },
+    {
+      "name": "get_pipeline_stats",
+      "description": "Obtiene estadísticas del pipeline"
+    }
+  ]
+}
