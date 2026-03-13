@@ -56,6 +56,7 @@ export async function POST(request: Request) {
     // Build the system prompt with context
     const systemPrompt = systemPromptTemplate
       .replace(/{champion_name}/g, champion.name || "")
+      .replace(/{champion_role}/g, champion.role || "")
       .replace(/{champion_title}/g, champion.role || champion.title || "")
       .replace(/{champion_company}/g, champion.company || "")
       .replace(/{champion_industry}/g, champion.industry || "")
