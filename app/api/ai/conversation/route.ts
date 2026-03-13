@@ -10,6 +10,7 @@ interface ConversationMessage {
 interface ConversationRequest {
   champion: {
     name: string
+    role?: string
     title?: string
     company?: string
     industry?: string
@@ -41,13 +42,21 @@ export async function POST(request: Request) {
       conversation_history = [],
     } = body
 
+    // Validate required fields
+    if (!champion || !champion.name) {
+      return NextResponse.json(
+        { error: "Falta seleccionar un champion" },
+        { status: 400 }
+      )
+    }
+
     // Get system prompt from DB
     const systemPromptTemplate = await getPrompt("conversation-agent") || `Sos Gastón, especialista en data e inversión publicitaria.`
 
     // Build the system prompt with context
     const systemPrompt = systemPromptTemplate
       .replace(/{champion_name}/g, champion.name || "")
-      .replace(/{champion_title}/g, champion.title || "")
+      .replace(/{champion_title}/g, champion.role || champion.title || "")
       .replace(/{champion_company}/g, champion.company || "")
       .replace(/{champion_industry}/g, champion.industry || "")
       .replace(/{efemeride_name}/g, efemeride.name || "")
