@@ -22,8 +22,9 @@ interface Message {
 interface Champion {
   id: string
   name: string
-  title: string | null
+  role: string | null
   company: string
+  industry: string | null
 }
 
 interface Efemeride {

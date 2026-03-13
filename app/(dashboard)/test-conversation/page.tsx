@@ -4,8 +4,9 @@ import ConversationClient from "./conversation-client"
 interface Champion {
   id: string
   name: string
-  title: string | null
+  role: string | null
   company: string
+  industry: string | null
 }
 
 interface Efemeride {
@@ -28,7 +29,7 @@ export default async function TestConversationPage() {
   // Traer champions sin restricción RLS usando el server client
   const { data: champions, error: championsError } = await supabase
     .from("champions")
-    .select("id, name, title, company")
+    .select("id, name, role, company, industry")
     .order("name")
 
   const { data: efemerides, error: efemeridesError } = await supabase
