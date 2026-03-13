@@ -50,16 +50,27 @@ export default function TestConversationPage() {
   }, [])
 
   async function loadData() {
-    const [championsRes, efemeridesRes] = await Promise.all([
-      supabase.from("champions").select("id, name, title, company").order("name").limit(50),
-      supabase.from("efemerides").select("id, name, manual_data").eq("is_active", true).order("event_date")
-    ])
-    
-    console.log("[v0] Champions loaded:", championsRes.data?.length, championsRes.error)
-    console.log("[v0] Efemerides loaded:", efemeridesRes.data?.length, efemeridesRes.error)
-    
-    if (championsRes.data) setChampions(championsRes.data)
-    if (efemeridesRes.data) setEfemerides(efemeridesRes.data)
+    try {
+      // Query sin filtros, solo los campos necesarios
+      const championsRes = await supabase
+        .from("champions")
+        .select("id, name, title, company")
+        .order("name")
+
+      const efemeridesRes = await supabase
+        .from("efemerides")
+        .select("id, name, manual_data")
+        .eq("is_active", true)
+        .order("event_date")
+      
+      console.log("[v0] Champions loaded:", championsRes.data?.length, "error:", championsRes.error)
+      console.log("[v0] Efemerides loaded:", efemeridesRes.data?.length, "error:", efemeridesRes.error)
+      
+      if (championsRes.data) setChampions(championsRes.data)
+      if (efemeridesRes.data) setEfemerides(efemeridesRes.data)
+    } catch (err) {
+      console.error("[v0] loadData error:", err)
+    }
   }
 
   async function generateFirstMessage() {
