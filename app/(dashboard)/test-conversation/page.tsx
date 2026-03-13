@@ -55,6 +55,9 @@ export default function TestConversationPage() {
       supabase.from("efemerides").select("id, name, manual_data").eq("is_active", true).order("event_date")
     ])
     
+    console.log("[v0] Champions loaded:", championsRes.data?.length, championsRes.error)
+    console.log("[v0] Efemerides loaded:", efemeridesRes.data?.length, efemeridesRes.error)
+    
     if (championsRes.data) setChampions(championsRes.data)
     if (efemeridesRes.data) setEfemerides(efemeridesRes.data)
   }
@@ -195,17 +198,21 @@ export default function TestConversationPage() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-medium mb-2 block">Champion</label>
+              <label className="text-sm font-medium mb-2 block">Champion ({champions.length} disponibles)</label>
               <Select value={selectedChampion} onValueChange={setSelectedChampion}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar champion..." />
+                  <SelectValue placeholder={champions.length === 0 ? "Cargando..." : "Seleccionar champion..."} />
                 </SelectTrigger>
                 <SelectContent>
-                  {champions.map(c => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name} - {c.company}
-                    </SelectItem>
-                  ))}
+                  {champions.length === 0 ? (
+                    <SelectItem value="loading" disabled>Cargando champions...</SelectItem>
+                  ) : (
+                    champions.map(c => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name} - {c.company}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
