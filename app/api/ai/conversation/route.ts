@@ -59,9 +59,9 @@ export async function POST(request: Request) {
       .replace(/{champion_title}/g, champion.role || champion.title || "")
       .replace(/{champion_company}/g, champion.company || "")
       .replace(/{champion_industry}/g, champion.industry || "")
-      .replace(/{efemeride_name}/g, efemeride.name || "")
+      .replace(/{efemeride_name}/g, efemeride?.name || "evento")
       .replace(/{seenka_data}/g, seenka_data || "No hay datos disponibles")
-      .replace(/{discount_code}/g, discount_code || "")
+      .replace(/{discount_code}/g, discount_code || "SEENKA500")
 
     // Build conversation array for the LLM
     const messages = [

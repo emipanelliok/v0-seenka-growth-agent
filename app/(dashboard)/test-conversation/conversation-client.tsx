@@ -65,12 +65,17 @@ export default function ConversationClient({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          champion_id: selectedChampion,
-          champion_name: selectedChampionData?.name,
-          champion_title: selectedChampionData?.title,
-          champion_company: selectedChampionData?.company,
-          efemeride_name: selectedEfemeridesData.name,
-          messages: [],
+          champion: {
+            id: selectedChampion,
+            name: selectedChampionData?.name,
+            role: selectedChampionData?.role,
+            company: selectedChampionData?.company,
+            industry: selectedChampionData?.industry,
+          },
+          efemeride: {
+            name: selectedEfemeridesData.name,
+          },
+          conversation_history: [],
           seenka_data: seenkaData,
         }),
       })
@@ -111,12 +116,17 @@ export default function ConversationClient({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          champion_id: selectedChampion,
-          champion_name: selectedChampionData?.name,
-          champion_title: selectedChampionData?.title,
-          champion_company: selectedChampionData?.company,
-          efemeride_name: selectedEfemeridesData?.name,
-          messages: newMessages,
+          champion: {
+            id: selectedChampion,
+            name: selectedChampionData?.name,
+            role: selectedChampionData?.role,
+            company: selectedChampionData?.company,
+            industry: selectedChampionData?.industry,
+          },
+          efemeride: {
+            name: selectedEfemeridesData?.name,
+          },
+          conversation_history: newMessages,
           seenka_data: seenkaData,
         }),
       })
