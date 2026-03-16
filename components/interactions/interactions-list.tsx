@@ -437,8 +437,13 @@ function AISuggestionBox({
         if (error) throw error
         setApproved(true)
       } else {
+        // Obtener user_id actual
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) throw new Error("No autenticado")
+        
         // Guardar mensaje en la cola de salida
         const { error: queueError } = await supabase.from("outreach_queue").insert({
+          user_id: user.id,
           champion_id: championId,
           channel: "email",
           message: editedMessage || suggestion.generatedResponse,
@@ -450,6 +455,7 @@ function AISuggestionBox({
         
         // Registrar la interacción
         await supabase.from("interactions").insert({
+          user_id: user.id,
           champion_id: championId,
           channel: "email",
           message: editedMessage || suggestion.generatedResponse,
