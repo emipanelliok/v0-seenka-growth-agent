@@ -443,8 +443,7 @@ function AISuggestionBox({
           channel: "email",
           message: editedMessage || suggestion.generatedResponse,
           subject_line: suggestion.suggestedSubject || "Re: Seguimiento",
-          status: "approved",
-          priority: 1
+          status: "approved"
         })
         
         if (queueError) throw queueError
