@@ -139,7 +139,11 @@ async function sendEmail(
     ? `${fromName} <${fromEmail}>`
     : `${fromName} <onboarding@resend.dev>`
 
-  const htmlBody = `<div style="font-family: Arial, sans-serif; font-size: 15px; line-height: 1.6; color: #222; max-width: 560px;">${item.message.replace(/\n\n/g, "</p><p>").replace(/\n/g, "<br>").replace(/^/, "<p>").replace(/$/, "</p>")}</div>`
+  // Format message as HTML properly
+  const paragraphs = item.message.split(/\n\n+/).filter(p => p.trim())
+  const htmlBody = `<div style="font-family: Arial, sans-serif; font-size: 15px; line-height: 1.6; color: #222; max-width: 560px;">
+    ${paragraphs.map(p => `<p>${p.trim().replace(/\n/g, "<br>")}</p>`).join("")}
+  </div>`
   
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
