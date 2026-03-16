@@ -138,6 +138,31 @@ export function InteractionsList({ interactions: initialInteractions }: Interact
     ignored: { label: "Sin respuesta", icon: XCircle, className: "text-muted-foreground" },
   }
 
+  // Agrupar interacciones por champion
+  const groupedByChampion = filteredInteractions.reduce((acc, interaction) => {
+    const championId = interaction.champion_id || "sin-champion"
+    if (!acc[championId]) {
+      acc[championId] = {
+        champion: interaction.champion,
+        interactions: []
+      }
+    }
+    acc[championId].interactions.push(interaction)
+    return acc
+  }, {} as Record<string, { champion: Champion | null, interactions: InteractionWithDetails[] }>)
+
+  // Ordenar cada grupo por fecha (más antiguo primero para mostrar como conversación)
+  Object.values(groupedByChampion).forEach(group => {
+    group.interactions.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+  })
+
+  // Ordenar los grupos por la fecha más reciente de interacción
+  const sortedGroups = Object.entries(groupedByChampion).sort((a, b) => {
+    const lastA = a[1].interactions[a[1].interactions.length - 1]
+    const lastB = b[1].interactions[b[1].interactions.length - 1]
+    return new Date(lastB.created_at).getTime() - new Date(lastA.created_at).getTime()
+  })
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-4 sm:flex-row">
@@ -176,46 +201,47 @@ export function InteractionsList({ interactions: initialInteractions }: Interact
         </Select>
       </div>
 
-      <div className="space-y-4">
-        {filteredInteractions.map((interaction) => {
-          const outcomeInfo = outcomeConfig[interaction.outcome]
-          const OutcomeIcon = outcomeInfo.icon
+      <div className="space-y-6">
+        {sortedGroups.map(([championId, group]) => {
+          const lastInteraction = group.interactions[group.interactions.length - 1]
+          const lastOutcomeInfo = outcomeConfig[lastInteraction.outcome]
+          const LastOutcomeIcon = lastOutcomeInfo.icon
 
           return (
-            <Card key={interaction.id}>
+            <Card key={championId}>
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2 mb-1">
                       <Badge variant="outline">
-                        {CHANNEL_LABELS[interaction.channel]}
+                        {group.interactions.length} mensaje{group.interactions.length > 1 ? "s" : ""}
                       </Badge>
                       <Badge
                         variant="outline"
-                        className={outcomeInfo.className}
+                        className={lastOutcomeInfo.className}
                       >
-                        <OutcomeIcon className="mr-1 h-3 w-3" />
-                        {outcomeInfo.label}
+                        <LastOutcomeIcon className="mr-1 h-3 w-3" />
+                        {lastOutcomeInfo.label}
                       </Badge>
                     </div>
-                    {interaction.champion && (
+                    {group.champion && (
                       <CardTitle className="text-base">
                         <Link
-                          href={`/champions/${interaction.champion.id}`}
+                          href={`/champions/${group.champion.id}`}
                           className="hover:underline"
                         >
-                          {interaction.champion.name}
+                          {group.champion.name}
                         </Link>
-                        {interaction.champion.company && (
+                        {group.champion.company && (
                           <span className="font-normal text-muted-foreground">
                             {" "}
-                            - {interaction.champion.company}
+                            - {group.champion.company}
                           </span>
                         )}
                       </CardTitle>
                     )}
                     <CardDescription>
-                      {new Date(interaction.created_at).toLocaleDateString("es-ES", {
+                      Última interacción: {new Date(lastInteraction.created_at).toLocaleDateString("es-ES", {
                         day: "numeric",
                         month: "long",
                         year: "numeric",
@@ -225,17 +251,9 @@ export function InteractionsList({ interactions: initialInteractions }: Interact
                     </CardDescription>
                   </div>
                   <div className="flex gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => openEditDialog(interaction)}
-                    >
-                      <Edit className="mr-1 h-3 w-3" />
-                      Actualizar
-                    </Button>
-                    {interaction.champion && (
+                    {group.champion && (
                       <Button variant="ghost" size="sm" asChild>
-                        <Link href={`/champions/${interaction.champion.id}`}>
+                        <Link href={`/champions/${group.champion.id}`}>
                           <ExternalLink className="mr-1 h-3 w-3" />
                           Ver champion
                         </Link>
@@ -244,49 +262,78 @@ export function InteractionsList({ interactions: initialInteractions }: Interact
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-3">
-                {interaction.insight && (
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Insight:</p>
-                    <p className="text-sm">{interaction.insight}</p>
-                  </div>
-                )}
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-1">Mensaje enviado:</p>
-                  <p className="text-sm text-muted-foreground">{interaction.message}</p>
-                </div>
-                {interaction.response && (
-                  <div className="rounded-lg bg-chart-2/10 p-3">
-                    <p className="text-xs font-medium text-chart-2 mb-1">Respuesta recibida:</p>
-                    <p className="text-sm">{interaction.response}</p>
-                  </div>
-                )}
-                {(interaction as any).reply_content && (
-                  <div className="rounded-lg bg-chart-2/10 p-3">
-                    <div className="flex items-start gap-2">
-                      <div className="flex-1">
-                        <p className="text-xs font-medium text-chart-2 mb-1">Respuesta del champion:</p>
-                        <p className="text-sm">{(interaction as any).reply_content}</p>
+              <CardContent className="space-y-4">
+                {/* Conversación como thread */}
+                <div className="space-y-3 border-l-2 border-muted pl-4">
+                  {group.interactions.map((interaction, idx) => {
+                    const outcomeInfo = outcomeConfig[interaction.outcome]
+                    const isLast = idx === group.interactions.length - 1
+                    
+                    return (
+                      <div key={interaction.id} className="relative">
+                        {/* Dot indicator */}
+                        <div className={`absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full border-2 border-background ${
+                          interaction.outcome === "responded" ? "bg-chart-2" : "bg-primary"
+                        }`} />
+                        
+                        {/* Mensaje enviado */}
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span className="font-medium">Enviado</span>
+                            <span>
+                              {new Date(interaction.created_at).toLocaleDateString("es-ES", {
+                                day: "numeric",
+                                month: "short",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                            <Badge variant="outline" className="text-xs h-5">
+                              {CHANNEL_LABELS[interaction.channel]}
+                            </Badge>
+                          </div>
+                          <div className="rounded-lg bg-primary/5 p-3">
+                            <p className="text-sm whitespace-pre-wrap">{interaction.message}</p>
+                          </div>
+                        </div>
+                        
+                        {/* Respuesta del champion */}
+                        {(interaction.response || (interaction as any).reply_content) && (
+                          <div className="mt-2 space-y-2">
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <span className="font-medium text-chart-2">Respuesta</span>
+                              {(interaction as any).reply_sentiment && (
+                                <Badge variant="secondary" className="text-xs h-5">
+                                  {(interaction as any).reply_sentiment === "positive"
+                                    ? "Positivo"
+                                    : (interaction as any).reply_sentiment === "negative"
+                                    ? "Negativo"
+                                    : "Neutral"}
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="rounded-lg bg-chart-2/10 p-3">
+                              <p className="text-sm whitespace-pre-wrap">
+                                {(interaction as any).reply_content || interaction.response}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* AI Suggestion solo en la última interacción con respuesta */}
+                        {isLast && (interaction as any).reply_content && (
+                          <div className="mt-3">
+                            <AISuggestionBox 
+                              interaction={interaction} 
+                              championId={interaction.champion_id}
+                              championName={interaction.champion?.name || "Champion"}
+                            />
+                          </div>
+                        )}
                       </div>
-                      {(interaction as any).reply_sentiment && (
-                        <Badge variant="secondary" className="mt-0.5">
-                          {(interaction as any).reply_sentiment === "positive"
-                            ? "Positivo"
-                            : (interaction as any).reply_sentiment === "negative"
-                            ? "Negativo"
-                            : "Neutral"}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                )}
-                {(interaction as any).reply_content && (
-                  <AISuggestionBox 
-                    interaction={interaction} 
-                    championId={interaction.champion_id}
-                    championName={interaction.champion?.name || "Champion"}
-                  />
-                )}
+                    )
+                  })}
+                </div>
               </CardContent>
             </Card>
           )
