@@ -57,7 +57,7 @@ interface InteractionsListProps {
   interactions: InteractionWithDetails[]
 }
 
-export function InteractionsList({ interactions }: InteractionsListProps) {
+export function InteractionsList({ interactions: initialInteractions }: InteractionsListProps) {
   const [search, setSearch] = useState("")
   const [channelFilter, setChannelFilter] = useState<string>("all")
   const [outcomeFilter, setOutcomeFilter] = useState<string>("all")
@@ -65,6 +65,7 @@ export function InteractionsList({ interactions }: InteractionsListProps) {
   const [response, setResponse] = useState("")
   const [outcome, setOutcome] = useState<InteractionOutcome>("sent")
   const [isUpdating, setIsUpdating] = useState(false)
+  const [interactions, setInteractions] = useState<InteractionWithDetails[]>(initialInteractions)
   const router = useRouter()
 
   const filteredInteractions = interactions.filter((interaction) => {
@@ -454,14 +455,26 @@ function AISuggestionBox({
         if (queueError) throw queueError
         
         // Registrar la interacción
-        await supabase.from("interactions").insert({
+        const { data: newInteraction, error: interactionError } = await supabase.from("interactions").insert({
           user_id: user.id,
           champion_id: championId,
           channel: "email",
           message: editedMessage || suggestion.generatedResponse,
           outcome: "sent",
           insight: `Respuesta generada por IA (${action})`,
-        })
+        }).select().single()
+        
+        if (interactionError) throw interactionError
+        
+        // Agregar la nueva interacción a la lista localmente
+        if (newInteraction) {
+          const champion = interactions.find(i => i.champion_id === championId)?.champion
+          setInteractions(prev => [{
+            ...newInteraction,
+            champion: champion || null,
+            trigger: null
+          }, ...prev])
+        }
         
         setApproved(true)
       }
