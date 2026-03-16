@@ -444,14 +444,7 @@ function AISuggestionBox({
           message: editedMessage || suggestion.generatedResponse,
           subject_line: suggestion.suggestedSubject || "Re: Seguimiento",
           status: "approved",
-          priority: 1,
-          metadata: {
-            auto_generated: true,
-            intent_detected: suggestion.intent,
-            action_type: action,
-            temperature: suggestion.temperatura,
-            reasoning: suggestion.razonamiento
-          }
+          priority: 1
         })
         
         if (queueError) throw queueError
