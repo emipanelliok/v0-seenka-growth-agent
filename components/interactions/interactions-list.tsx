@@ -409,17 +409,21 @@ function AISuggestionBox({
     }
   }
 
+  const [approved, setApproved] = useState(false)
+  const [approvalError, setApprovalError] = useState<string | null>(null)
+
   const approveSuggestion = async () => {
     // Permitir si hay mensaje editado O si es una acción especial (stand_by, etc)
     if (!editedMessage && !(suggestion?.accion || suggestion?.action)) return
     
     setSending(true)
+    setApprovalError(null)
     try {
       const action = suggestion?.accion || suggestion?.action || "continuar"
       
       // Si es stand_by, no enviar mensaje, solo registrar la acción
       if (action === "stand_by") {
-        await supabase.from("champion_sequences").update({
+        const { error } = await supabase.from("champion_sequences").update({
           metadata: {
             status: "stand_by",
             temperature: suggestion.temperatura,
@@ -429,9 +433,12 @@ function AISuggestionBox({
           },
           status: "paused"
         }).eq("champion_id", championId).eq("status", "active")
+        
+        if (error) throw error
+        setApproved(true)
       } else {
-        // Enviar mensaje normalmente
-        await supabase.from("outreach_queue").insert({
+        // Guardar mensaje en la cola de salida
+        const { error: queueError } = await supabase.from("outreach_queue").insert({
           champion_id: championId,
           channel: "email",
           message: editedMessage || suggestion.generatedResponse,
@@ -446,13 +453,31 @@ function AISuggestionBox({
             reasoning: suggestion.razonamiento
           }
         })
+        
+        if (queueError) throw queueError
+        
+        // Registrar la interacción
+        await supabase.from("interactions").insert({
+          champion_id: championId,
+          channel: "email",
+          message: editedMessage || suggestion.generatedResponse,
+          outcome: "sent",
+          insight: `Respuesta generada por IA (${action})`,
+        })
+        
+        setApproved(true)
       }
       
-      setSuggestion(null)
-      setGenerated(false)
-      router.refresh()
+      // Mostrar confirmación por 2 segundos antes de limpiar
+      setTimeout(() => {
+        setSuggestion(null)
+        setGenerated(false)
+        setApproved(false)
+        router.refresh()
+      }, 2000)
     } catch (err) {
       console.error("Error approving suggestion:", err)
+      setApprovalError("Error al guardar. Intentá de nuevo.")
     } finally {
       setSending(false)
     }
@@ -492,8 +517,24 @@ function AISuggestionBox({
     )
   }
 
+  if (approved) {
+    return (
+      <div className="rounded-lg bg-green-500/10 border border-green-500/30 p-3 mt-2">
+        <div className="flex items-center gap-2 text-green-600">
+          <CheckCircle className="h-4 w-4" />
+          <span className="text-sm font-medium">Mensaje guardado en bandeja de salida</span>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="rounded-lg bg-primary/5 border border-primary/20 p-3 mt-2 space-y-3">
+      {approvalError && (
+        <div className="text-sm text-red-500 bg-red-50 p-2 rounded">
+          {approvalError}
+        </div>
+      )}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-primary" />
