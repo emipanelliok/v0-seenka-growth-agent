@@ -95,6 +95,8 @@ export function OutreachQueue({ items, champions, efemerides }: Props) {
   const [processingIds, setProcessingIds] = useState<Set<string>>(new Set())
   const [sendingApproved, setSendingApproved] = useState(false)
   const [processingExisting, setProcessingExisting] = useState(false)
+  const [sendError, setSendError] = useState<string | null>(null)
+  const [sendSuccess, setSendSuccess] = useState<string | null>(null)
 
   const champMap = new Map(champions.map((c) => [c.id, c]))
   const efeMap = new Map(efemerides.map((e) => [e.id, e]))
@@ -175,21 +177,40 @@ export function OutreachQueue({ items, champions, efemerides }: Props) {
   // Send all approved
   const sendAllApproved = async () => {
     setSendingApproved(true)
+    setSendError(null)
+    setSendSuccess(null)
     try {
       const res = await fetch("/api/outreach/send-approved", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       })
-      if (res.ok) {
-        router.refresh()
-        // Optimistically update statuses
-        const approvedIds = queueItems.filter((i) => i.status === "approved").map((i) => i.id)
-        setQueueItems((prev) => prev.map((i) =>
-          approvedIds.includes(i.id) ? { ...i, status: "sent", sent_at: new Date().toISOString() } : i
-        ))
+      
+      const data = await res.json()
+      
+      if (!res.ok) {
+        setSendError(data.error || "Error desconocido al enviar")
+        console.error("[v0] Send error:", data)
+        return
       }
+      
+      // Success
+      setSendSuccess(`✅ ${data.sent} mensaje(s) enviado(s)${data.failed > 0 ? ` (${data.failed} fallaron)` : ""}`)
+      
+      // Refresh to update statuses
+      router.refresh()
+      
+      // Optimistically update statuses
+      const approvedIds = queueItems.filter((i) => i.status === "approved").map((i) => i.id)
+      setQueueItems((prev) => prev.map((i) =>
+        approvedIds.includes(i.id) ? { ...i, status: "sent", sent_at: new Date().toISOString() } : i
+      ))
+      
+      // Clear success message after 5 seconds
+      setTimeout(() => setSendSuccess(null), 5000)
     } catch (err) {
-      console.error("Error sending approved:", err)
+      const errorMsg = err instanceof Error ? err.message : "Error desconocido"
+      setSendError(`Error: ${errorMsg}`)
+      console.error("[v0] Send error:", err)
     } finally {
       setSendingApproved(false)
     }
@@ -232,6 +253,31 @@ export function OutreachQueue({ items, champions, efemerides }: Props) {
 
   return (
     <div className="space-y-6">
+      {/* Error message */}
+      {sendError && (
+        <div className="rounded-lg bg-red-50 border border-red-200 p-4 flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-medium text-red-900">Error al enviar</p>
+            <p className="text-sm text-red-700 mt-1">{sendError}</p>
+          </div>
+          <button onClick={() => setSendError(null)} className="text-red-500 hover:text-red-700">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+      
+      {/* Success message */}
+      {sendSuccess && (
+        <div className="rounded-lg bg-green-50 border border-green-200 p-4 flex items-start gap-3">
+          <CheckCheck className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
+          <p className="text-sm text-green-700 flex-1">{sendSuccess}</p>
+          <button onClick={() => setSendSuccess(null)} className="text-green-500 hover:text-green-700">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+      
       {/* Action buttons */}
       <div className="flex flex-wrap gap-2">
         <Button
