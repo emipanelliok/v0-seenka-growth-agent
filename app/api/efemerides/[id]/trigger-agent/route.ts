@@ -242,54 +242,67 @@ export async function POST(
         console.log(`[trigger-agent] ${champion.name} | contextData: ${contextData ? `${contextData.length} chars` : "NULL"} | manual_data: ${manualData ? "yes" : "no"}`)
         if (contextData) console.log(`[trigger-agent] contextData preview: ${contextData.substring(0, 300)}`)
 
+        const reportUrl: string | null = (efemeride as any).report_url || null
+
         const seenkaContext = contextData
-          ? `DESCRIPCIONES REALES DE SPOTS PUBLICITARIOS (fuente: Seenka):
+          ? `DATOS REALES DE SEENKA — ${efemeride.name}:
 ${contextData}
 
-CÓMO USAR ESTOS DATOS:
-- Cada línea entre corchetes es la descripción real de un spot que pautó esa marca.
-- Citá esa descripción casi textualmente en el mensaje. NO la parafrasees ni inventes otra versión.
-- Ejemplo correcto: "Vi que Mercado Libre salió con 'hasta 45% de descuento y 18 cuotas sin interés' para el Hot Sale — ¿cómo lo trabajaron desde la agencia?"
-- Ejemplo INCORRECTO: "Mercado Libre está yendo con ofertas exclusivas" — eso es vago e inventado.
-- Elegí el spot más relevante para los clientes de esta persona. No uses el mismo para todos.`
-          : `SIN DATOS DE SEENKA DISPONIBLES:
-- NO inventes que "X marca comunicó Y" ni supongas creatividades.
-- Hacé una pregunta abierta: "¿Cómo están encarando ${efemeride.name} este año con [cliente]?"
-- El mensaje debe dejar claro que querés entender su situación, no que tenés datos.`
+CÓMO CONSTRUIR EL MENSAJE CON ESTOS DATOS:
+- El gancho es un insight del SECTOR, no de una marca sola. Ejemplo: "estuve mirando qué pasó en TV en el Hot Sale del año pasado — los mensajes que más dominaron en retail fueron descuento fuerte + cuotas sin interés + envío gratis"
+- Después mencioná la marca relevante para ESTA persona específica, citando su mensaje casi textualmente.
+- Cerrá siempre con el CTA: "Si te interesa ver el análisis completo, podríamos darte acceso a la plataforma con $500 USD en créditos."${reportUrl ? `\n- Incluí este link en el mensaje: ${reportUrl}` : ""}
+- UNA SOLA pregunta al final, corta y natural.
+- NUNCA uses la frase "a la vuelta de la esquina" ni ninguna variante. Usá fechas concretas o "este año".`
+          : `SIN DATOS DE SEENKA:
+- No inventes datos de ningún tipo.
+- Presentate como alguien que analiza inversión publicitaria y preguntá cómo están planificando ${efemeride.name} este año.
+- Igual cerrá con el CTA de $500 en créditos.`
 
         const personalizationInstruction = primaryClient
           ? `PERSONALIZACIÓN OBLIGATORIA: El mensaje DEBE mencionar "${primaryClient}" (o alguna de estas marcas: ${clientBrandsText}) de forma específica. No mandes el mismo mensaje genérico que le mandarías a cualquiera.`
           : "No tenemos marcas específicas del champion, usá el dato de industria general."
 
         const channelConstraints = channel === "email"
-          ? `FORMATO: Email. Esquema EXACTO — no agregues ni saques nada:
+          ? `FORMATO Email:
 
-Subject: [nombre de la marca/cliente. Máximo 6 palabras.]
+Subject: [algo que despierte curiosidad — puede mencionar la marca o la fecha, máximo 7 palabras]
 
 Hola [Nombre],
 
-[1 sola oración con el dato real de Seenka — citá el texto del spot casi literalmente.]
+[2-3 oraciones: el dato real del spot + tu observación breve sobre por qué es interesante]
 
-[1 sola pregunta de cierre — natural, corta, referida a su trabajo con esa marca.]
+[1 sola pregunta de cierre]
 
 — Gastón
 
-REGLAS DURAS: tuteo argentino (voseo), sin emojis, sin bullets, sin markdown. UNA SOLA PREGUNTA, no dos. Sin frases de relleno como "con la efeméride a la vista" o "es clave planificar". Solo el dato y la pregunta. Reemplazá [Nombre] con el nombre real.`
-          : `FORMATO: LinkedIn DM. Esquema EXACTO:
+REGLAS: voseo argentino, sin emojis, sin bullets, sin markdown, UNA SOLA PREGUNTA al final. Máximo 80 palabras en el cuerpo. Reemplazá [Nombre] con el nombre real de la persona.`
+          : `FORMATO LinkedIn DM:
 
-Hola [Nombre], [1 oración con el dato real del spot de la marca.] [1 pregunta corta de cierre.]
+Hola [Nombre], [1-2 oraciones con el dato real + observación breve] [1 pregunta de cierre]
 
 — Gastón
 
 REGLAS: máximo 300 caracteres total, voseo, sin emojis, UNA SOLA PREGUNTA. Reemplazá [Nombre] con el nombre real.`
 
-        const prompt = `Sos Gastón, analista de inteligencia creativa publicitaria. Le escribís a un colega de la industria — no estás vendiendo nada, solo compartís algo que viste y que puede servirle.
+        const prompt = `Sos Gastón, analista de inteligencia publicitaria en Seenka. Le escribís a alguien que NO te conoce — primer contacto en frío. No estás vendiendo, estás compartiendo inteligencia de mercado útil para su trabajo.
 
-El gancho siempre es la DESCRIPCIÓN REAL de un spot que pautó una marca relevante para esta persona. Ejemplo:
-"Vi que Mercado Libre salió con 'hasta 45% de descuento y 18 cuotas sin interés' para el Hot Sale — ¿cómo lo trabajaron desde la agencia?"
-"Frávega fue con 'descuentos en 100.000 productos, envío gratis' — ¿manejás esa cuenta?"
+El tono es el de alguien de la industria escribiéndole a otro: directo, sin corporativo. No sonés a vendedor ni a bot.
 
-El texto de la descripción del spot ES el mensaje. Usalo casi literalmente. NO parafraseés, NO generalicés, NO inventés variantes.
+ESTRUCTURA DEL MENSAJE:
+1. Gancho: un insight del sector — qué pasó en ${efemeride.name} (qué mensajes dominaron, qué tendencias se vieron). Usá los datos reales de Seenka.
+2. Personalización: mencioná la marca específica de esta persona y su mensaje real, casi textualmente.
+3. CTA: "Si te interesa ver el análisis completo, podríamos darte acceso a la plataforma con $500 USD en créditos para que vos y tu equipo exploren todo." (siempre incluir, es parte del mensaje)
+4. Una sola pregunta de cierre corta y natural.
+
+EJEMPLO de tono y estructura correcta:
+"Hola Pablo, estuve mirando qué pasó en TV en el Hot Sale del año pasado en retail. Los mensajes que más dominaron fueron descuento fuerte + cuotas sin interés + envío gratis — OnCity fue uno de los más activos con '50% off y 18 cuotas'. Si te interesa ver el análisis completo, podríamos darte acceso a la plataforma con $500 USD en créditos. ¿Trabajás con esa cuenta?"
+
+PROHIBIDO:
+- "a la vuelta de la esquina" — nunca, jamás
+- Cualquier variante de "próximamente" o timing vago — usá el año concreto o nada
+- Dos preguntas
+- Inventar datos que no estén en Seenka
 
 CONTEXTO:
 Efeméride: ${efemeride.name}
@@ -320,10 +333,8 @@ TONO:
 REGLAS DURAS:
 - Español argentino con voseo
 - Sin emojis
-- NUNCA menciones Seenka en el primer mensaje
-- NUNCA inventes datos si no los tenés
-- Sin firmas elaboradas
-- No inventés datos ni números si no los tenés en los datos de Seenka
+- NUNCA inventes datos que no estén en los datos de Seenka
+- Firmá como "Gastón\nSeenka Media Intelligence" (con salto de línea entre nombre y empresa)
 - Solo el mensaje, nada más.`
 
         const { text } = await generateText({
