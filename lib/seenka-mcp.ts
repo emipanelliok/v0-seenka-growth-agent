@@ -229,47 +229,32 @@ export async function getSeenkaInsightForBrand(
     const sectors = parseRows(sectorRaw)
     const sectorName = sectors.length > 0 ? sectors[0].name : null
 
-    // Plan A: assets de la marca filtrados por nombre de efeméride en la ventana de fechas
-    // Plan B: misma ventana sin filtro de nombre (cualquier asset activo en ese período)
-    // Plan C: fallback a últimos 60 días sin filtro (evento futuro o sin datos históricos)
+    // Plan A: assets en la ventana de fechas del evento (trae spots reales de la efeméride)
+    // Plan B: fallback a últimos 60 días (evento futuro o sin datos históricos)
     let brandAssetsRaw = ""
-    if (efemeridesName && "start_time" in dateParams) {
-      brandAssetsRaw = await callTool(apiKey, sessionId, "seenka_query", {
-        data: "asset", brand: canonical, country: country, ...dateParams,
-        include_filters: { asset_name: efemeridesName },
-        limit: 8,
-      }, 4)
-    }
-    if (parseAssets(brandAssetsRaw).length === 0 && "start_time" in dateParams) {
+    if ("start_time" in dateParams) {
       brandAssetsRaw = await callTool(apiKey, sessionId, "seenka_query", {
         data: "asset", brand: canonical, country: country, ...dateParams, limit: 8
-      }, 5)
+      }, 4)
     }
     if (parseAssets(brandAssetsRaw).length === 0) {
       brandAssetsRaw = await callTool(apiKey, sessionId, "seenka_query", {
         data: "asset", brand: canonical, country: country, days_back: 60, limit: 8
-      }, 6)
+      }, 5)
     }
 
-    // Sector assets: mismo plan A/B/C para contexto competitivo
+    // Sector assets: misma lógica para contexto competitivo
     let sectorAssetsRaw = ""
     if (sectorName) {
-      if (efemeridesName && "start_time" in dateParams) {
-        sectorAssetsRaw = await callTool(apiKey, sessionId, "seenka_query", {
-          data: "asset", sector: sectorName, country: country, ...dateParams,
-          include_filters: { asset_name: efemeridesName },
-          limit: 8,
-        }, 7)
-      }
-      if (parseAssets(sectorAssetsRaw).length === 0 && "start_time" in dateParams) {
+      if ("start_time" in dateParams) {
         sectorAssetsRaw = await callTool(apiKey, sessionId, "seenka_query", {
           data: "asset", sector: sectorName, country: country, ...dateParams, limit: 8
-        }, 8)
+        }, 6)
       }
       if (parseAssets(sectorAssetsRaw).length === 0) {
         sectorAssetsRaw = await callTool(apiKey, sessionId, "seenka_query", {
           data: "asset", sector: sectorName, country: country, days_back: 30, limit: 8
-        }, 9)
+        }, 7)
       }
     }
 

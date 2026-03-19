@@ -238,17 +238,24 @@ export async function POST(
 
         const contextData = matchedData || await getContextData(clients, champion)
 
+        // Debug: log what data actually reached the LLM
+        console.log(`[trigger-agent] ${champion.name} | contextData: ${contextData ? `${contextData.length} chars` : "NULL"} | manual_data: ${manualData ? "yes" : "no"}`)
+        if (contextData) console.log(`[trigger-agent] contextData preview: ${contextData.substring(0, 300)}`)
+
         const seenkaContext = contextData
-          ? `DATOS PUBLICITARIOS DE SEENKA — usá estas descripciones TEXTUALMENTE en el mensaje:
+          ? `DESCRIPCIONES REALES DE SPOTS PUBLICITARIOS (fuente: Seenka):
 ${contextData}
 
-REGLAS PARA USAR ESTOS DATOS:
-- Citá la descripción del spot casi literalmente. Ej: si dice "Frávega comunica descuentos en 100.000 productos con envío gratis", el mensaje arranca así.
-- NO parafrasees ni generalices. "Precio más bajo garantizado" es una paráfrasis vaga — usá el texto exacto.
-- Elegí el spot más relevante para esta persona según sus clientes.
-- Cada mensaje debe citar un spot distinto. No uses el mismo dato para todos los champions.
-- NUNCA menciones "segundos de airtime", inversión, presupuesto ni métricas de negocio.`
-          : "No hay datos específicos disponibles. Escribí sobre la tendencia creativa general del sector para esta efeméride — qué suelen comunicar las marcas en esta fecha."
+CÓMO USAR ESTOS DATOS:
+- Cada línea entre corchetes es la descripción real de un spot que pautó esa marca.
+- Citá esa descripción casi textualmente en el mensaje. NO la parafrasees ni inventes otra versión.
+- Ejemplo correcto: "Vi que Mercado Libre salió con 'hasta 45% de descuento y 18 cuotas sin interés' para el Hot Sale — ¿cómo lo trabajaron desde la agencia?"
+- Ejemplo INCORRECTO: "Mercado Libre está yendo con ofertas exclusivas" — eso es vago e inventado.
+- Elegí el spot más relevante para los clientes de esta persona. No uses el mismo para todos.`
+          : `SIN DATOS DE SEENKA DISPONIBLES:
+- NO inventes que "X marca comunicó Y" ni supongas creatividades.
+- Hacé una pregunta abierta: "¿Cómo están encarando ${efemeride.name} este año con [cliente]?"
+- El mensaje debe dejar claro que querés entender su situación, no que tenés datos.`
 
         const personalizationInstruction = primaryClient
           ? `PERSONALIZACIÓN OBLIGATORIA: El mensaje DEBE mencionar "${primaryClient}" (o alguna de estas marcas: ${clientBrandsText}) de forma específica. No mandes el mismo mensaje genérico que le mandarías a cualquiera.`
@@ -280,10 +287,11 @@ REGLAS: máximo 300 caracteres en total, tuteo argentino (voseo), sin emojis, si
 
         const prompt = `Sos Gastón, analista de inteligencia creativa publicitaria. Le escribís a un colega de la industria — no estás vendiendo nada, solo compartís algo que viste y que puede servirle.
 
-⚠️ FOCO EXCLUSIVO EN CREATIVIDAD PUBLICITARIA:
-Lo que importa es QUÉ ESTÁN COMUNICANDO las marcas hoy: sus mensajes creativos, promesas de valor, tono, territorios creativos, conceptos de campaña.
-NO hablés de: inversión publicitaria, segundos de airtime, presupuestos, ventas, ROI, transacciones, ni métricas de negocio.
-El dato tiene que ser del estilo: "Frávega está yendo fuerte con el mensaje de 'precio más bajo garantizado' en TV" o "OnCity está comunicando conveniencia y rapidez en digital".
+El gancho siempre es la DESCRIPCIÓN REAL de un spot que pautó una marca relevante para esta persona. Ejemplo:
+"Vi que Mercado Libre salió con 'hasta 45% de descuento y 18 cuotas sin interés' para el Hot Sale — ¿cómo lo trabajaron desde la agencia?"
+"Frávega fue con 'descuentos en 100.000 productos, envío gratis' — ¿manejás esa cuenta?"
+
+El texto de la descripción del spot ES el mensaje. Usalo casi literalmente. NO parafraseés, NO generalicés, NO inventés variantes.
 
 CONTEXTO:
 Efeméride: ${efemeride.name}
@@ -362,6 +370,9 @@ REGLAS DURAS:
           message,
           subject_line: subjectLine,
           outreach_queue_id: queueItem?.id || null,
+          // Debug: allows verifying what data actually reached the LLM
+          data_available: contextData !== null,
+          seenka_data_preview: contextData ? contextData.substring(0, 200) : null,
         })
       } catch (err) {
         const name = candidate.champion.name || candidate.champion.id
