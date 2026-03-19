@@ -1,40 +1,43 @@
 import { createClient } from "@/lib/supabase/server"
-import { InteractionsList } from "@/components/interactions/interactions-list"
-import type { Interaction, Champion, Trigger } from "@/lib/types"
-
-interface InteractionWithDetails extends Interaction {
-  champion: Champion | null
-  trigger: Trigger | null
-}
+import { ConversationsView } from "@/components/interactions/conversations-view"
 
 export default async function InteractionsPage() {
   const supabase = await createClient()
-  
-  const { data: interactions, error } = await supabase
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
+  // Load all interactions (ascending so thread is in order)
+  const { data: interactions } = await supabase
     .from("interactions")
-    .select(`
-      *,
-      champion:champions(*),
-      trigger:triggers(*)
-    `)
-    .order("created_at", { ascending: false })
+    .select("id, champion_id, message, response, reply_content, reply_sentiment, outcome, channel, insight, created_at")
+    .order("created_at", { ascending: true })
+
+  // Load pending/approved outreach queue items
+  const { data: queueItems } = await supabase
+    .from("outreach_queue")
+    .select("id, champion_id, message, subject_line, channel, status, created_at, efemeride_id")
+    .eq("user_id", user.id)
+    .in("status", ["pending_review", "approved"])
+    .order("created_at", { ascending: true })
+
+  // Collect all champion IDs from both sources
+  const champIds = new Set([
+    ...((interactions || []).map((i) => i.champion_id)),
+    ...((queueItems || []).map((q) => q.champion_id)),
+  ])
+
+  const { data: champions } = champIds.size > 0
+    ? await supabase
+        .from("champions")
+        .select("id, name, company, role, email, linkedin_url")
+        .in("id", [...champIds])
+    : { data: [] }
 
   return (
-    <div className="p-6 lg:p-8">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-foreground">Interacciones</h1>
-        <p className="text-muted-foreground">
-          Historial de todos los contactos realizados con champions
-        </p>
-      </div>
-
-      {error && (
-        <div className="mb-4 rounded-lg bg-destructive/10 p-4 text-destructive">
-          Error al cargar interacciones: {error.message}
-        </div>
-      )}
-
-      <InteractionsList interactions={(interactions || []) as InteractionWithDetails[]} />
-    </div>
+    <ConversationsView
+      interactions={interactions || []}
+      queueItems={queueItems || []}
+      champions={champions || []}
+    />
   )
 }

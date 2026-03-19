@@ -52,84 +52,87 @@ export async function POST(request: Request) {
   }
 
   // =============================
-  // PASO 1: Piloterr (LinkedIn scraping) - llamada directa
+  // PASO 1: Apollo.io enrichment (primary), PDL fallback handled below
   // =============================
-  try {
-    const piloterrKey = process.env.PILOTERR_API_KEY
-    if (piloterrKey && rawLinkedinUrl) {
-      let piloterrResponse: Response | null = null
-      try {
-        piloterrResponse = await fetch(
-          `https://piloterr.com/api/v2/linkedin/profile?query=${encodeURIComponent(rawLinkedinUrl)}`,
-          { headers: { "x-api-key": piloterrKey, "Content-Type": "application/json" } }
-        )
-      } catch (fetchErr) {
-        errors.push(`Piloterr fetch: ${(fetchErr as Error).message}`)
-      }
-      if (piloterrResponse?.ok) {
-        const rawData = await piloterrResponse.json()
-        if (rawData && !rawData.error) {
-          const detectType = (role: string, headline: string) => {
-            const text = `${role} ${headline}`.toLowerCase()
-            const types: Record<string, string[]> = {
-              creative: ["creativ", "direc.*arte", "art director", "copywriter", "redactor", "diseñ", "design", "planner", "brand"],
-              media: ["media", "medios", "planning", "trader", "programmatic", "digital media", "investment"],
-              marketing: ["marketing", "mkt", "brand manager", "product manager", "growth", "comunicaci"],
-              sales: ["sales", "ventas", "comercial", "account exec", "business develop", "revenue"],
-              strategy: ["strateg", "insight", "research", "analista", "analytics", "data"],
-            }
-            for (const [type, keywords] of Object.entries(types)) {
-              if (keywords.some((kw) => new RegExp(kw, "i").test(text))) return type
-            }
-            return "other"
-          }
+  const detectType = (role: string | null, headline: string | null) => {
+    const text = `${role || ""} ${headline || ""}`.toLowerCase()
+    const types: Record<string, string[]> = {
+      creative: ["creativ", "direc.*arte", "art director", "copywriter", "redactor", "diseñ", "design", "planner", "brand"],
+      media: ["media", "medios", "planning", "trader", "programmatic", "digital media", "investment"],
+      marketing: ["marketing", "mkt", "brand manager", "product manager", "growth", "comunicaci"],
+      sales: ["sales", "ventas", "comercial", "account exec", "business develop", "revenue"],
+      strategy: ["strateg", "insight", "research", "analista", "analytics", "data"],
+    }
+    for (const [type, keywords] of Object.entries(types)) {
+      if (keywords.some((kw) => new RegExp(kw, "i").test(text))) return type
+    }
+    return "other"
+  }
 
-          const role = rawData.sub_title || rawData.position_groups?.[0]?.profile_positions?.[0]?.title || ""
-          const company = rawData.position_groups?.[0]?.company?.name || rawData.position_groups?.[0]?.profile_positions?.[0]?.company || ""
-          const headline = rawData.headline || rawData.sub_title || ""
+  try {
+    const apolloKey = process.env.APOLLO_API_KEY
+    if (apolloKey && rawLinkedinUrl) {
+      let apolloResponse: Response | null = null
+      try {
+        apolloResponse = await fetch("https://api.apollo.io/api/v1/people/match", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Api-Key": apolloKey,
+          },
+          body: JSON.stringify({ linkedin_url: rawLinkedinUrl }),
+        })
+      } catch (fetchErr) {
+        errors.push(`Apollo fetch: ${(fetchErr as Error).message}`)
+      }
+
+      if (apolloResponse?.ok) {
+        const apolloResult = await apolloResponse.json()
+        const p = apolloResult?.person
+        if (p) {
+          const role = p.title || ""
+          const company = p.organization_name || p.organization?.name || ""
+          const headline = p.headline || role
+          const country = p.country || p.city || null
+
+          const experiences = (p.employment_history || []).map((e: any) => ({
+            title: e.title || "",
+            company: e.organization_name || "",
+            starts_at: e.start_date || null,
+            ends_at: e.end_date || "Actual",
+            is_current: e.current || false,
+          }))
 
           enrichedData = {
-            name: rawData.first_name && rawData.last_name ? `${rawData.first_name} ${rawData.last_name}` : rawData.full_name || null,
-            role: role,
-            company: company,
-            country: rawData.country || rawData.location || null,
-            headline: headline,
-            summary: rawData.summary || null,
-            photo_url: rawData.profile_pic_url || null,
-            website_url: rawData.websites?.length > 0 ? rawData.websites[0] : null,
-            follower_count: rawData.follower_count || null,
-            connection_count: rawData.connection_count || null,
-            languages: rawData.languages?.map((l: any) => typeof l === "string" ? l : l.name) || null,
-            experiences: rawData.position_groups?.flatMap((g: any) =>
-              g.profile_positions?.map((p: any) => ({
-                title: p.title || "",
-                company: g.company?.name || p.company || "",
-                starts_at: p.date?.start ? `${p.date.start.month || ""}/${p.date.start.year || ""}` : null,
-                ends_at: p.date?.end ? `${p.date.end.month || ""}/${p.date.end.year || ""}` : "Actual",
-              })) || []
-            ) || null,
-            educations: rawData.education?.map((e: any) => ({
-              school: e.school_name || e.school || "",
-              degree: e.degree || "",
-              field: e.field_of_study || "",
-            })) || null,
-            similar_profiles: rawData.people_also_viewed?.slice(0, 5)?.map((p: any) => ({
-              name: p.name || "",
-              role: p.title || "",
-              url: p.url || "",
-            })) || null,
-            linkedin_data: rawData,
+            name: [p.first_name, p.last_name].filter(Boolean).join(" ") || null,
+            email: p.email || null,
+            role,
+            company,
+            country,
+            headline,
+            summary: null,
+            photo_url: p.photo_url || null,
+            website_url: null,
+            follower_count: null,
+            connection_count: null,
+            languages: null,
+            experiences: experiences.length > 0 ? experiences : null,
+            educations: null,
+            similar_profiles: null,
+            linkedin_data: apolloResult,
             champion_type: detectType(role, headline),
           }
         } else {
-          errors.push("Piloterr: perfil no encontrado o error en respuesta")
+          errors.push("Apollo: persona no encontrada")
         }
-      } else if (piloterrResponse && !piloterrResponse.ok) {
-        errors.push(`Piloterr: error ${piloterrResponse.status}`)
+      } else if (apolloResponse && !apolloResponse.ok) {
+        errors.push(`Apollo: error ${apolloResponse.status}`)
       }
+    } else if (!process.env.APOLLO_API_KEY) {
+      errors.push("Apollo: APOLLO_API_KEY no configurada")
     }
   } catch (err) {
-    errors.push(`Piloterr: ${(err as Error).message}`)
+    errors.push(`Apollo: ${(err as Error).message}`)
   }
 
   // =============================
@@ -294,21 +297,7 @@ Clasificá esta empresa usando el nomenclador. Respondé en español.`,
     }
   }
 
-  // Auto-detectar tipo
-  const detectType = (role: string | null, headline: string | null) => {
-    const text = `${role || ""} ${headline || ""}`.toLowerCase()
-    const types: Record<string, string[]> = {
-      creative: ["creativ", "direc.*arte", "art director", "copywriter", "redactor", "diseñ", "design", "planner", "brand"],
-      media: ["media", "medios", "planning", "trader", "programmatic", "digital media", "investment"],
-      marketing: ["marketing", "mkt", "brand manager", "product manager", "growth", "comunicaci"],
-      sales: ["sales", "ventas", "comercial", "account exec", "business develop", "revenue"],
-      strategy: ["strateg", "insight", "research", "analista", "analytics", "data"],
-    }
-    for (const [type, keywords] of Object.entries(types)) {
-      if (keywords.some((kw) => new RegExp(kw, "i").test(text))) return type
-    }
-    return "other"
-  }
+  // Auto-detectar tipo (función definida arriba junto con PASO 1)
   const championType = enrichedData?.champion_type || detectType(mergedRole, mergedHeadline)
 
   // Merge linkedin_data

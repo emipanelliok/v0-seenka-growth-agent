@@ -46,9 +46,16 @@ export async function POST(request: Request) {
 
     const { text } = await generateText({
       model: "openai/gpt-4o-mini",
+      system: `Sos Gastón, el agente de ventas de Seenka. Escribís mensajes de outreach cortos y directos.
+
+REGLAS ESTRICTAS:
+- Máximo 60 palabras totales
+- Solo usá los números y datos que aparecen explícitamente en el documento o datos de Seenka que te pasan. NUNCA inventes cifras, porcentajes ni estadísticas.
+- Si no hay datos concretos, hacé una pregunta inteligente sobre el tema sin inventar nada
+- Tono casual y directo, sin frases de vendedor`,
       prompt,
       temperature: 0.8,
-      maxTokens: 400,
+      maxTokens: 200,
     })
 
     console.log("[v0] Generated message:", text.substring(0, 300))
