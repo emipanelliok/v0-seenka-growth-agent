@@ -262,28 +262,26 @@ CÓMO USAR ESTOS DATOS:
           : "No tenemos marcas específicas del champion, usá el dato de industria general."
 
         const channelConstraints = channel === "email"
-          ? `FORMATO: Email. Seguí este esquema EXACTO, respetando los saltos de línea:
+          ? `FORMATO: Email. Esquema EXACTO — no agregues ni saques nada:
 
-Subject: [Incluí el nombre de una de las marcas/clientes que maneja la persona. Máximo 8 palabras.]
+Subject: [nombre de la marca/cliente. Máximo 6 palabras.]
 
 Hola [Nombre],
 
-¿Cómo estás?
+[1 sola oración con el dato real de Seenka — citá el texto del spot casi literalmente.]
 
-[Párrafo 1: arrancá con el dato concreto de Seenka.]
+[1 sola pregunta de cierre — natural, corta, referida a su trabajo con esa marca.]
 
-[Párrafo 2: contexto de la tendencia, máximo 2 oraciones.]
+— Gastón
 
-[CTA: una sola pregunta natural.]
+REGLAS DURAS: tuteo argentino (voseo), sin emojis, sin bullets, sin markdown. UNA SOLA PREGUNTA, no dos. Sin frases de relleno como "con la efeméride a la vista" o "es clave planificar". Solo el dato y la pregunta. Reemplazá [Nombre] con el nombre real.`
+          : `FORMATO: LinkedIn DM. Esquema EXACTO:
 
-[nombre]
+Hola [Nombre], [1 oración con el dato real del spot de la marca.] [1 pregunta corta de cierre.]
 
-REGLAS: tuteo argentino (voseo), sin emojis, sin bullets, sin asteriscos, sin markdown. Reemplazá [Nombre] con el nombre real de la persona.`
-          : `FORMATO: LinkedIn DM. Seguí este esquema EXACTO:
+— Gastón
 
-Hola [Nombre], ¿cómo estás? [1 oración con el dato concreto referido a una de sus marcas/clientes.] [1 pregunta natural de cierre.]
-
-REGLAS: máximo 300 caracteres en total, tuteo argentino (voseo), sin emojis, sin markdown. Reemplazá [Nombre] con el nombre real de la persona.`
+REGLAS: máximo 300 caracteres total, voseo, sin emojis, UNA SOLA PREGUNTA. Reemplazá [Nombre] con el nombre real.`
 
         const prompt = `Sos Gastón, analista de inteligencia creativa publicitaria. Le escribís a un colega de la industria — no estás vendiendo nada, solo compartís algo que viste y que puede servirle.
 
