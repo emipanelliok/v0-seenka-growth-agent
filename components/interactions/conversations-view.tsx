@@ -62,17 +62,26 @@ interface ThreadMsg {
   queueItem?: QueueItem
 }
 
-// Strip quoted reply lines ("> ...", "On ... wrote:", separators)
+// Strip quoted reply lines, email signatures and thread history
 function stripQuoted(text: string): string {
   if (!text) return ""
   const lines = text.split("\n")
   const out: string[] = []
-  for (const line of lines) {
-    const t = line.trim()
-    if (/^On .+ wrote:/.test(t)) break
+  for (let i = 0; i < lines.length; i++) {
+    const t = lines[i].trim()
+    // Stop at quoted thread indicators
+    if (/^On .+ wrote:/i.test(t)) break
+    if (/^El .+(escribi[oó]:|wrote:)/i.test(t)) break
+    // Stop at signature delimiter
+    if (/^--\s*$/.test(t)) break
+    // Stop at separator lines
     if (/^-{3,}/.test(t) || /^_{3,}/.test(t)) break
+    // Skip quoted lines
     if (t.startsWith(">")) continue
-    out.push(line)
+    // Stop at common signature patterns (name + company + phone block)
+    if (i > 0 && /^\+\d[\d\s]{6,}$/.test(t)) break
+    if (/^(Agendemos|Agendamos)\s/i.test(t)) break
+    out.push(lines[i])
   }
   while (out.length && out[out.length - 1].trim() === "") out.pop()
   return out.join("\n").trim()
@@ -95,6 +104,8 @@ export function ConversationsView({ interactions, queueItems, champions }: Conve
   const [editMsg, setEditMsg] = useState("")
   const [editSubject, setEditSubject] = useState("")
   const [processingId, setProcessingId] = useState<string | null>(null)
+  const [suggestingReply, setSuggestingReply] = useState(false)
+  const [suggestError, setSuggestError] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
   const router = useRouter()
@@ -204,6 +215,30 @@ export function ConversationsView({ interactions, queueItems, champions }: Conve
     } finally {
       setProcessingId(null)
       setEditingId(null)
+    }
+  }
+
+  const handleSuggestReply = async () => {
+    if (!selected) return
+    // Find the last interaction with a champion response
+    const lastReplied = [...interactions]
+      .filter((ix) => ix.champion_id === selected.champion.id && ix.outcome === "responded")
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
+    if (!lastReplied) return
+
+    setSuggestingReply(true)
+    setSuggestError(null)
+    try {
+      const res = await fetch(`/api/interactions/${lastReplied.id}/suggest-reply`, { method: "POST" })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Error generando respuesta")
+      // Add to local queue so it shows immediately
+      setLocalQueue((prev) => [...prev, data.queueItem])
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100)
+    } catch (e: unknown) {
+      setSuggestError(e instanceof Error ? e.message : "Error")
+    } finally {
+      setSuggestingReply(false)
     }
   }
 
@@ -338,6 +373,27 @@ export function ConversationsView({ interactions, queueItems, champions }: Conve
               <div ref={bottomRef} />
             </div>
           </div>
+
+          {/* Gastón sugiere respuesta — aparece cuando hay respuesta del champion y no hay pending */}
+          {selected.messages.some((m) => m.type === "champion") &&
+           !selected.messages.some((m) => m.type === "pending") && (
+            <div className="flex-shrink-0 border-t px-5 py-3 flex items-center gap-3">
+              <Button
+                size="sm"
+                onClick={handleSuggestReply}
+                disabled={suggestingReply}
+                className="gap-1.5"
+              >
+                {suggestingReply ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="h-3.5 w-3.5" />
+                )}
+                {suggestingReply ? "Gastón está pensando…" : "Gastón sugiere respuesta"}
+              </Button>
+              {suggestError && <p className="text-xs text-destructive">{suggestError}</p>}
+            </div>
+          )}
 
           {/* Pending approval boxes */}
           {selected.messages.some((m) => m.type === "pending") && (
