@@ -188,13 +188,32 @@ async function getCanonicalBrand(apiKey: string, sessionId: string, brandName: s
 export async function getSeenkaInsightForBrand(
   brandName: string,
   countryRaw: string,
-  efemeridesName?: string
+  eventDate?: string  // YYYY-MM-DD de la efeméride
 ): Promise<{ text: string } | null> {
   const apiKey = process.env.SEENKA_MCP_API_KEY
   if (!apiKey) return null
 
   const country = resolveCountry(countryRaw)
-  const days = 60
+
+  // Calcular rango de fechas: 14 días antes del evento, 7 días después
+  // Si no hay eventDate o es futuro → usar days_back general
+  function getDateRange(): { start_time: string; end_time: string } | { days_back: number } {
+    if (!eventDate) return { days_back: 60 }
+    const event = new Date(eventDate + "T00:00:00Z")
+    const today = new Date()
+    today.setUTCHours(0, 0, 0, 0)
+    if (event > today) return { days_back: 60 } // evento futuro → contexto general
+    const start = new Date(event)
+    start.setUTCDate(start.getUTCDate() - 14)
+    const end = new Date(event)
+    end.setUTCDate(end.getUTCDate() + 7)
+    return {
+      start_time: start.toISOString().slice(0, 10),
+      end_time: end.toISOString().slice(0, 10),
+    }
+  }
+
+  const dateParams = getDateRange()
 
   try {
     const sessionId = await initSession(apiKey)
@@ -204,59 +223,58 @@ export async function getSeenkaInsightForBrand(
 
     // Get sector for context
     const sectorRaw = await callTool(apiKey, sessionId, "seenka_query", {
-      data: "sector", brand: canonical, country: country, days_back: days, limit: 3
+      data: "sector", brand: canonical, country: country, days_back: 60, limit: 3
     }, 3)
     const sectors = parseRows(sectorRaw)
     const sectorName = sectors.length > 0 ? sectors[0].name : null
 
-    // Build keyword from efeméride name for targeted search
-    // e.g. "Día del Padre" → keyword: "padre"
-    const efemKeyword = efemeridesName
-      ? efemeridesName.toLowerCase().replace(/día (de(l?|la)?|del)\s+/i, "").split(/\s+/)[0]
-      : null
-
-    // Strategy: try efeméride-keyword filter first, fallback to all brand assets
+    // Plan A: assets de la marca filtrados por nombre de efeméride en la ventana de fechas
+    // Plan B: misma ventana sin filtro de nombre (cualquier asset activo en ese período)
+    // Plan C: fallback a últimos 60 días sin filtro (evento futuro o sin datos históricos)
     let brandAssetsRaw = ""
-    if (efemKeyword) {
+    if (efemeridesName && "start_time" in dateParams) {
       brandAssetsRaw = await callTool(apiKey, sessionId, "seenka_query", {
-        data: "asset",
-        brand: canonical,
-        country: country,
-        days_back: days,
-        include_filters: { keyword: efemKeyword },
-        limit: 6,
+        data: "asset", brand: canonical, country: country, ...dateParams,
+        include_filters: { asset_name: efemeridesName },
+        limit: 8,
       }, 4)
     }
-
-    // If keyword search returned nothing, get general brand assets
-    const efemAssets = parseAssets(brandAssetsRaw)
-    if (efemAssets.length === 0) {
+    if (parseAssets(brandAssetsRaw).length === 0 && "start_time" in dateParams) {
       brandAssetsRaw = await callTool(apiKey, sessionId, "seenka_query", {
-        data: "asset", brand: canonical, country: country, days_back: days, limit: 8
+        data: "asset", brand: canonical, country: country, ...dateParams, limit: 8
       }, 5)
     }
+    if (parseAssets(brandAssetsRaw).length === 0) {
+      brandAssetsRaw = await callTool(apiKey, sessionId, "seenka_query", {
+        data: "asset", brand: canonical, country: country, days_back: 60, limit: 8
+      }, 6)
+    }
 
-    // Sector assets also filtered by keyword when possible
+    // Sector assets: mismo plan A/B/C para contexto competitivo
     let sectorAssetsRaw = ""
     if (sectorName) {
-      const sectorParams: Record<string, unknown> = {
-        data: "asset", sector: sectorName, country: country, days_back: 30, limit: 8
+      if (efemeridesName && "start_time" in dateParams) {
+        sectorAssetsRaw = await callTool(apiKey, sessionId, "seenka_query", {
+          data: "asset", sector: sectorName, country: country, ...dateParams,
+          include_filters: { asset_name: efemeridesName },
+          limit: 8,
+        }, 7)
       }
-      if (efemKeyword) sectorParams.include_filters = { keyword: efemKeyword }
-      sectorAssetsRaw = await callTool(apiKey, sessionId, "seenka_query", sectorParams, 6)
-
-      // Fallback to general if nothing found with keyword
+      if (parseAssets(sectorAssetsRaw).length === 0 && "start_time" in dateParams) {
+        sectorAssetsRaw = await callTool(apiKey, sessionId, "seenka_query", {
+          data: "asset", sector: sectorName, country: country, ...dateParams, limit: 8
+        }, 8)
+      }
       if (parseAssets(sectorAssetsRaw).length === 0) {
         sectorAssetsRaw = await callTool(apiKey, sessionId, "seenka_query", {
           data: "asset", sector: sectorName, country: country, days_back: 30, limit: 8
-        }, 7)
+        }, 9)
       }
     }
 
     const lines: string[] = []
     lines.push(`MARCA: ${canonical} — últimos ${days} días (${country})`)
     if (sectorName) lines.push(`SECTOR: ${sectorName}`)
-    if (efemKeyword) lines.push(`FILTRO EFEMÉRIDE: "${efemeridesName || efemKeyword}"`)
     lines.push("============================================")
 
     const brandAssets = parseAssets(brandAssetsRaw)
@@ -305,43 +323,60 @@ export async function getSeenkaInsightForBrand(
 export async function getSeenkaInsightForSector(
   sectorName: string,
   countryRaw: string,
+  eventDate?: string,
   efemeridesName?: string
 ): Promise<{ text: string } | null> {
   const apiKey = process.env.SEENKA_MCP_API_KEY
   if (!apiKey) return null
 
   const country = resolveCountry(countryRaw)
-  const days = 30
+
+  function getDateRange(): { start_time: string; end_time: string } | { days_back: number } {
+    if (!eventDate) return { days_back: 30 }
+    const event = new Date(eventDate + "T00:00:00Z")
+    const today = new Date()
+    today.setUTCHours(0, 0, 0, 0)
+    if (event > today) return { days_back: 30 }
+    const start = new Date(event)
+    start.setUTCDate(start.getUTCDate() - 14)
+    const end = new Date(event)
+    end.setUTCDate(end.getUTCDate() + 7)
+    return {
+      start_time: start.toISOString().slice(0, 10),
+      end_time: end.toISOString().slice(0, 10),
+    }
+  }
+
+  const dateParams = getDateRange()
 
   try {
     const sessionId = await initSession(apiKey)
     if (!sessionId) return null
 
-    const efemKeyword = efemeridesName
-      ? efemeridesName.toLowerCase().replace(/día (de(l?|la)?|del)\s+/i, "").split(/\s+/)[0]
-      : null
-
-    // Try efeméride keyword filter first, fallback to all sector assets
+    // Plan A: asset_name filter + date range
+    // Plan B: solo date range
+    // Plan C: fallback días recientes
     let assetsRaw = ""
-    if (efemKeyword) {
+    if (efemeridesName && "start_time" in dateParams) {
       assetsRaw = await callTool(apiKey, sessionId, "seenka_query", {
-        data: "asset",
-        sector: sectorName,
-        country: country,
-        days_back: days,
-        include_filters: { keyword: efemKeyword },
+        data: "asset", sector: sectorName, country: country, ...dateParams,
+        include_filters: { asset_name: efemeridesName },
         limit: 12,
       }, 2)
     }
+    if (parseAssets(assetsRaw).length === 0 && "start_time" in dateParams) {
+      assetsRaw = await callTool(apiKey, sessionId, "seenka_query", {
+        data: "asset", sector: sectorName, country: country, ...dateParams, limit: 12
+      }, 3)
+    }
     if (parseAssets(assetsRaw).length === 0) {
       assetsRaw = await callTool(apiKey, sessionId, "seenka_query", {
-        data: "asset", sector: sectorName, country: country, days_back: days, limit: 12
-      }, 3)
+        data: "asset", sector: sectorName, country: country, days_back: 30, limit: 12
+      }, 4)
     }
 
     const lines: string[] = []
     lines.push(`SECTOR: ${sectorName} — últimos ${days} días (${country})`)
-    if (efemKeyword) lines.push(`FILTRO EFEMÉRIDE: "${efemeridesName || efemKeyword}"`)
     lines.push("============================================")
 
     const assets = parseAssets(assetsRaw)
@@ -378,13 +413,13 @@ export async function callSeenkaTool(apiKey: string, sessionId: string, toolName
   return callTool(apiKey, sessionId, toolName, toolParams, id)
 }
 
-export async function getSeenkaDataForBrand(brandName: string, context: { efemeridesName?: string; country?: string }): Promise<string | null> {
-  const result = await getSeenkaInsightForBrand(brandName, context.country || "argentina", context.efemeridesName)
+export async function getSeenkaDataForBrand(brandName: string, context: { efemeridesName?: string; country?: string; eventDate?: string }): Promise<string | null> {
+  const result = await getSeenkaInsightForBrand(brandName, context.country || "argentina", context.eventDate)
   return result ? result.text : null
 }
 
-export async function getSeenkaDataForSector(sectorName: string, country: string, efemeridesName?: string): Promise<string | null> {
-  const result = await getSeenkaInsightForSector(sectorName, country, efemeridesName)
+export async function getSeenkaDataForSector(sectorName: string, country: string, eventDate?: string, efemeridesName?: string): Promise<string | null> {
+  const result = await getSeenkaInsightForSector(sectorName, country, eventDate, efemeridesName)
   return result ? result.text : null
 }
 
