@@ -18,6 +18,7 @@ import {
   CalendarDays,
   Inbox,
   ChevronRight,
+  BookOpen,
 } from "lucide-react"
 
 interface DashboardSidebarProps {
@@ -64,6 +65,11 @@ const navItems = [
     title: "Importar",
     href: "/importar",
     icon: Upload,
+  },
+  {
+    title: "Documentación",
+    href: "/docs",
+    icon: BookOpen,
   },
 ]
 
