@@ -239,14 +239,15 @@ export async function POST(
         const contextData = matchedData || await getContextData(clients, champion)
 
         const seenkaContext = contextData
-          ? `DATOS PUBLICITARIOS DISPONIBLES (extraé de acá el ángulo creativo — qué están comunicando las marcas, no cuánto gastan):
+          ? `DATOS PUBLICITARIOS DE SEENKA — usá estas descripciones TEXTUALMENTE en el mensaje:
 ${contextData}
 
-CÓMO INTERPRETAR ESTOS DATOS:
-- Si ves "segundos de airtime" → no los menciones. En cambio, inferí que esa marca está apostando fuerte a TV y hablá del MESSAGE que probablemente está comunicando.
-- Si ves nombres de marcas → elegí la más relevante para ESTA persona según sus clientes.
-- El insight tiene que ser del tipo: "[Marca] está yendo con [territorio creativo / promesa / tono]" — no "[Marca] invirtió X pesos".
-- Cada mensaje debe enfocarse en UN ángulo distinto. No repitas la misma estructura para todos los champions.`
+REGLAS PARA USAR ESTOS DATOS:
+- Citá la descripción del spot casi literalmente. Ej: si dice "Frávega comunica descuentos en 100.000 productos con envío gratis", el mensaje arranca así.
+- NO parafrasees ni generalices. "Precio más bajo garantizado" es una paráfrasis vaga — usá el texto exacto.
+- Elegí el spot más relevante para esta persona según sus clientes.
+- Cada mensaje debe citar un spot distinto. No uses el mismo dato para todos los champions.
+- NUNCA menciones "segundos de airtime", inversión, presupuesto ni métricas de negocio.`
           : "No hay datos específicos disponibles. Escribí sobre la tendencia creativa general del sector para esta efeméride — qué suelen comunicar las marcas en esta fecha."
 
         const personalizationInstruction = primaryClient

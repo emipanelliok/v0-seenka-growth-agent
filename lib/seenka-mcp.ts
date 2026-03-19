@@ -188,7 +188,8 @@ async function getCanonicalBrand(apiKey: string, sessionId: string, brandName: s
 export async function getSeenkaInsightForBrand(
   brandName: string,
   countryRaw: string,
-  eventDate?: string  // YYYY-MM-DD de la efeméride
+  eventDate?: string,  // YYYY-MM-DD de la efeméride
+  efemeridesName?: string
 ): Promise<{ text: string } | null> {
   const apiKey = process.env.SEENKA_MCP_API_KEY
   if (!apiKey) return null
@@ -273,7 +274,7 @@ export async function getSeenkaInsightForBrand(
     }
 
     const lines: string[] = []
-    lines.push(`MARCA: ${canonical} — últimos ${days} días (${country})`)
+    lines.push(`MARCA: ${canonical} (${country})`)
     if (sectorName) lines.push(`SECTOR: ${sectorName}`)
     lines.push("============================================")
 
@@ -376,7 +377,7 @@ export async function getSeenkaInsightForSector(
     }
 
     const lines: string[] = []
-    lines.push(`SECTOR: ${sectorName} — últimos ${days} días (${country})`)
+    lines.push(`SECTOR: ${sectorName} (${country})`)
     lines.push("============================================")
 
     const assets = parseAssets(assetsRaw)
@@ -414,7 +415,7 @@ export async function callSeenkaTool(apiKey: string, sessionId: string, toolName
 }
 
 export async function getSeenkaDataForBrand(brandName: string, context: { efemeridesName?: string; country?: string; eventDate?: string }): Promise<string | null> {
-  const result = await getSeenkaInsightForBrand(brandName, context.country || "argentina", context.eventDate)
+  const result = await getSeenkaInsightForBrand(brandName, context.country || "argentina", context.eventDate, context.efemeridesName)
   return result ? result.text : null
 }
 
