@@ -237,8 +237,15 @@ export async function POST(
         const contextData = matchedData || await getContextData(clients, champion)
 
         const seenkaContext = contextData
-          ? `DATO SEENKA (datos reales — usá los números exactos, no inventes ni redondees):\n${contextData}`
-          : "NO hay datos de Seenka disponibles. Generá un mensaje contextual útil sin inventar estadísticas."
+          ? `DATOS PUBLICITARIOS DISPONIBLES (extraé de acá el ángulo creativo — qué están comunicando las marcas, no cuánto gastan):
+${contextData}
+
+CÓMO INTERPRETAR ESTOS DATOS:
+- Si ves "segundos de airtime" → no los menciones. En cambio, inferí que esa marca está apostando fuerte a TV y hablá del MESSAGE que probablemente está comunicando.
+- Si ves nombres de marcas → elegí la más relevante para ESTA persona según sus clientes.
+- El insight tiene que ser del tipo: "[Marca] está yendo con [territorio creativo / promesa / tono]" — no "[Marca] invirtió X pesos".
+- Cada mensaje debe enfocarse en UN ángulo distinto. No repitas la misma estructura para todos los champions.`
+          : "No hay datos específicos disponibles. Escribí sobre la tendencia creativa general del sector para esta efeméride — qué suelen comunicar las marcas en esta fecha."
 
         const personalizationInstruction = primaryClient
           ? `PERSONALIZACIÓN OBLIGATORIA: El mensaje DEBE mencionar "${primaryClient}" (o alguna de estas marcas: ${clientBrandsText}) de forma específica. No mandes el mismo mensaje genérico que le mandarías a cualquiera.`
@@ -268,13 +275,15 @@ Hola [Nombre], ¿cómo estás? [1 oración con el dato concreto referido a una d
 
 REGLAS: máximo 300 caracteres en total, tuteo argentino (voseo), sin emojis, sin markdown. Reemplazá [Nombre] con el nombre real de la persona.`
 
-        const prompt = `Sos una persona que trabaja en inteligencia publicitaria y le estás escribiendo a un colega de la industria. NO sos un vendedor, no estás vendiendo nada. Simplemente compartís algo que encontraste y que creés que le puede servir.
+        const prompt = `Sos Gastón, analista de inteligencia creativa publicitaria. Le escribís a un colega de la industria — no estás vendiendo nada, solo compartís algo que viste y que puede servirle.
 
-Seenka es una plataforma de monitoreo publicitario. Pero ESO no lo mencionés hasta que sea absolutamente natural hacerlo. El foco es el dato, no el producto.
+⚠️ FOCO EXCLUSIVO EN CREATIVIDAD PUBLICITARIA:
+Lo que importa es QUÉ ESTÁN COMUNICANDO las marcas hoy: sus mensajes creativos, promesas de valor, tono, territorios creativos, conceptos de campaña.
+NO hablés de: inversión publicitaria, segundos de airtime, presupuestos, ventas, ROI, transacciones, ni métricas de negocio.
+El dato tiene que ser del estilo: "Frávega está yendo fuerte con el mensaje de 'precio más bajo garantizado' en TV" o "OnCity está comunicando conveniencia y rapidez en digital".
 
-CONTEXTO DE LA SITUACIÓN:
+CONTEXTO:
 Efeméride: ${efemeride.name}
-Descripción: ${efemeride.description || ""}
 Fecha: ${efemeride.event_date}
 ${timingContext}
 
@@ -283,11 +292,9 @@ Nombre: ${champion.name}
 Cargo: ${champion.role || ""}
 Empresa: ${champion.company || ""}
 País: ${champion.country || ""}
-Tipo de rol: ${champion.champion_type || ""}
 Clientes que maneja: ${clientsInfo}
 
-RELACIÓN ACTUAL: ${stage}
-${stageContext}
+RELACIÓN: ${stage} — ${stageContext}
 
 ${personalizationInstruction}
 
@@ -295,18 +302,17 @@ ${seenkaContext}
 
 ${channelConstraints}
 
-TONO Y ESTILO:
-- Escribí como le escribirías a alguien que conocés un poco pero no íntimamente. El tono de "hey, vi esto y me acordé de vos"
-- Nada de estructura corporativa: sin "espero que estés bien", sin "me dirijo a vos para...", sin "te escribo porque"
-- El mensaje tiene que parecer espontáneo, como si hubieras visto algo y se lo mandás
-- Si hay dato de Seenka, tiralo directo sin rodeos con los números exactos
-- No expliques qué es Seenka, no describas qué hace tu plataforma
-- No uses frases de vendedor: "quisiera saber si...", "estaría bueno poder...", "me gustaría ofrecerte..."
+TONO:
+- Tono de "hey, vi esto y me acordé de vos" — espontáneo, directo
+- Sin estructura corporativa, sin saludos formales
 - Cerrá con UNA sola pregunta corta y natural
+- Firmá siempre "— Gastón" (solo eso, nada más)
 
 REGLAS DURAS:
 - Español argentino con voseo
 - Sin emojis
+- NUNCA menciones Seenka en el primer mensaje
+- NUNCA inventes datos si no los tenés
 - Sin firmas elaboradas
 - No inventés datos ni números si no los tenés en los datos de Seenka
 - Solo el mensaje, nada más.`
