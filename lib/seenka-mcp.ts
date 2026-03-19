@@ -60,6 +60,30 @@ function parseRows(raw: string): Array<{ name: string; airtime: number; frequenc
   return result
 }
 
+function parseAssets(raw: string): Array<{ name: string; description: string; keywords: string; brands: string }> {
+  const result: Array<{ name: string; description: string; keywords: string; brands: string }> = []
+  try {
+    const parsed = JSON.parse(raw)
+    const data = parsed && parsed.data && parsed.data.data ? parsed.data.data : (parsed && parsed.data ? parsed.data : [])
+    if (Array.isArray(data)) {
+      for (let i = 0; i < data.length; i++) {
+        const row = data[i]
+        if (row && (row.description || row.name)) {
+          result.push({
+            name: row.name || "",
+            description: row.description || "",
+            keywords: row.keywords || "",
+            brands: row.brands || row.brand || "",
+          })
+        }
+      }
+    }
+  } catch (e) {
+    // not JSON
+  }
+  return result
+}
+
 async function mcpPost(apiKey: string, sessionId: string, id: number, method: string, params: Record<string, unknown>): Promise<string> {
   const headers: Record<string, string> = {
     Authorization: "Bearer " + apiKey,
@@ -161,7 +185,11 @@ async function getCanonicalBrand(apiKey: string, sessionId: string, brandName: s
   return brandName
 }
 
-export async function getSeenkaInsightForBrand(brandName: string, countryRaw: string): Promise<{ text: string } | null> {
+export async function getSeenkaInsightForBrand(
+  brandName: string,
+  countryRaw: string,
+  efemeridesName?: string
+): Promise<{ text: string } | null> {
   const apiKey = process.env.SEENKA_MCP_API_KEY
   if (!apiKey) return null
 
@@ -174,116 +202,96 @@ export async function getSeenkaInsightForBrand(brandName: string, countryRaw: st
 
     const canonical = await getCanonicalBrand(apiKey, sessionId, brandName, 2)
 
-    // First get the sector of this brand (using impact since we just need the name)
+    // Get sector for context
     const sectorRaw = await callTool(apiKey, sessionId, "seenka_query", {
       data: "sector", brand: canonical, country: country, days_back: days, limit: 3
     }, 3)
-    
     const sectors = parseRows(sectorRaw)
-    const sectorName = sectors.length > 0 ? sectors[0].name : "Automoviles"
+    const sectorName = sectors.length > 0 ? sectors[0].name : null
 
-    // Query SECTOR brands with airtime AND frequency
-    const sectorBrandsRaw = await callTool(apiKey, sessionId, "seenka_query", {
-      data: "brand", sector: sectorName, country: country, days_back: days, units: "airtime,frequency", limit: 10
-    }, 4)
+    // Build keyword from efeméride name for targeted search
+    // e.g. "Día del Padre" → keyword: "padre"
+    const efemKeyword = efemeridesName
+      ? efemeridesName.toLowerCase().replace(/día (de(l?|la)?|del)\s+/i, "").split(/\s+/)[0]
+      : null
 
-    // Query SECTOR supports with airtime
-    const sectorSupportsRaw = await callTool(apiKey, sessionId, "seenka_query", {
-      data: "support", sector: sectorName, country: country, days_back: days, units: "airtime,frequency", limit: 8
-    }, 5)
+    // Strategy: try efeméride-keyword filter first, fallback to all brand assets
+    let brandAssetsRaw = ""
+    if (efemKeyword) {
+      brandAssetsRaw = await callTool(apiKey, sessionId, "seenka_query", {
+        data: "asset",
+        brand: canonical,
+        country: country,
+        days_back: days,
+        include_filters: { keyword: efemKeyword },
+        limit: 6,
+      }, 4)
+    }
 
-    // Query SECTOR media DIGITAL (Meta, Youtube, Portales)
-    const digitalMediaRaw = await callTool(apiKey, sessionId, "seenka_query", {
-      data: "media", sector: sectorName, country: country, days_back: days, units: "airtime,frequency", limit: 8
-    }, 6)
+    // If keyword search returned nothing, get general brand assets
+    const efemAssets = parseAssets(brandAssetsRaw)
+    if (efemAssets.length === 0) {
+      brandAssetsRaw = await callTool(apiKey, sessionId, "seenka_query", {
+        data: "asset", brand: canonical, country: country, days_back: days, limit: 8
+      }, 5)
+    }
 
-    // Query SECTOR media TV PAGA specifically
-    const tvPagaRaw = await callTool(apiKey, sessionId, "seenka_query", {
-      data: "media", sector: sectorName, country: country, days_back: days, support: "TV Paga", units: "airtime,frequency", limit: 8
-    }, 7)
+    // Sector assets also filtered by keyword when possible
+    let sectorAssetsRaw = ""
+    if (sectorName) {
+      const sectorParams: Record<string, unknown> = {
+        data: "asset", sector: sectorName, country: country, days_back: 30, limit: 8
+      }
+      if (efemKeyword) sectorParams.include_filters = { keyword: efemKeyword }
+      sectorAssetsRaw = await callTool(apiKey, sessionId, "seenka_query", sectorParams, 6)
 
-    // Query SECTOR media TV AIRE specifically
-    const tvAireRaw = await callTool(apiKey, sessionId, "seenka_query", {
-      data: "media", sector: sectorName, country: country, days_back: days, support: "TV Aire", units: "airtime,frequency", limit: 8
-    }, 8)
-
-    // Get asset_name (materiales/creatividades) for the brand
-    const assetsRaw = await callTool(apiKey, sessionId, "seenka_query", {
-      data: "asset_name", brand: canonical, country: country, days_back: days, limit: 8
-    }, 9)
+      // Fallback to general if nothing found with keyword
+      if (parseAssets(sectorAssetsRaw).length === 0) {
+        sectorAssetsRaw = await callTool(apiKey, sessionId, "seenka_query", {
+          data: "asset", sector: sectorName, country: country, days_back: 30, limit: 8
+        }, 7)
+      }
+    }
 
     const lines: string[] = []
-    lines.push("SECTOR: " + sectorName + " - ultimos " + days + " dias (" + country + ")")
+    lines.push(`MARCA: ${canonical} — últimos ${days} días (${country})`)
+    if (sectorName) lines.push(`SECTOR: ${sectorName}`)
+    if (efemKeyword) lines.push(`FILTRO EFEMÉRIDE: "${efemeridesName || efemKeyword}"`)
     lines.push("============================================")
 
-    const brands = parseRows(sectorBrandsRaw)
-    if (brands.length > 0) {
+    const brandAssets = parseAssets(brandAssetsRaw)
+    if (brandAssets.length > 0) {
       lines.push("")
-      lines.push("MARCAS DEL SECTOR (por tiempo de aire y frecuencia):")
-      brands.forEach(function(b) {
-        const parts = []
-        if (b.airtime > 0) parts.push(formatAirtime(b.airtime))
-        if (b.frequency > 0) parts.push(formatNumber(b.frequency) + " veces")
-        lines.push("  - " + b.name + ": " + (parts.length > 0 ? parts.join(", ") : "sin datos"))
+      lines.push(`CAMPAÑAS ACTIVAS DE ${canonical.toUpperCase()} — qué están comunicando:`)
+      brandAssets.forEach(function(a) {
+        if (a.description) {
+          lines.push(`  [${a.name || "spot"}] ${a.description}`)
+          if (a.keywords) lines.push(`    keywords: ${a.keywords}`)
+        } else if (a.name) {
+          lines.push(`  - ${a.name}`)
+        }
       })
     }
 
-    const supports = parseRows(sectorSupportsRaw)
-    if (supports.length > 0) {
-      lines.push("")
-      lines.push("SOPORTES DEL SECTOR:")
-      supports.forEach(function(s) {
-        const parts = []
-        if (s.airtime > 0) parts.push(formatAirtime(s.airtime))
-        if (s.frequency > 0) parts.push(formatNumber(s.frequency) + " veces")
-        lines.push("  - " + s.name + ": " + (parts.length > 0 ? parts.join(", ") : "sin datos"))
-      })
-    }
-
-    const digitalMedia = parseRows(digitalMediaRaw)
-    if (digitalMedia.length > 0) {
-      lines.push("")
-      lines.push("MEDIOS DIGITALES:")
-      digitalMedia.forEach(function(m) {
-        const parts = []
-        if (m.airtime > 0) parts.push(formatAirtime(m.airtime))
-        if (m.frequency > 0) parts.push(formatNumber(m.frequency) + " veces")
-        lines.push("  - " + m.name + ": " + (parts.length > 0 ? parts.join(", ") : "sin datos"))
-      })
-    }
-
-    const tvPaga = parseRows(tvPagaRaw)
-    if (tvPaga.length > 0) {
-      lines.push("")
-      lines.push("TV PAGA (canales):")
-      tvPaga.forEach(function(m) {
-        const parts = []
-        if (m.airtime > 0) parts.push(formatAirtime(m.airtime))
-        if (m.frequency > 0) parts.push(formatNumber(m.frequency) + " veces")
-        lines.push("  - " + m.name + ": " + (parts.length > 0 ? parts.join(", ") : "sin datos"))
-      })
-    }
-
-    const tvAire = parseRows(tvAireRaw)
-    if (tvAire.length > 0) {
-      lines.push("")
-      lines.push("TV AIRE (canales):")
-      tvAire.forEach(function(m) {
-        const parts = []
-        if (m.airtime > 0) parts.push(formatAirtime(m.airtime))
-        if (m.frequency > 0) parts.push(formatNumber(m.frequency) + " veces")
-        lines.push("  - " + m.name + ": " + (parts.length > 0 ? parts.join(", ") : "sin datos"))
-      })
-    }
-
-    // Parse assets/materiales
-    const assets = parseRows(assetsRaw)
-    if (assets.length > 0) {
-      lines.push("")
-      lines.push("MATERIALES/CREATIVIDADES DE " + canonical.toUpperCase() + ":")
-      assets.forEach(function(a) {
-        lines.push("  - " + a.name)
-      })
+    if (sectorName) {
+      const sectorAssets = parseAssets(sectorAssetsRaw)
+      const otherBrandAssets = sectorAssets.filter(a => a.brands && a.brands.toLowerCase() !== canonical.toLowerCase())
+      if (otherBrandAssets.length > 0) {
+        lines.push("")
+        lines.push(`COMPETIDORES EN ${sectorName.toUpperCase()} — qué están comunicando:`)
+        const seen: Record<string, number> = {}
+        otherBrandAssets.forEach(function(a) {
+          const b = a.brands || "Competidor"
+          seen[b] = (seen[b] || 0) + 1
+          if (seen[b] > 2) return
+          if (a.description) {
+            lines.push(`  [${b}] ${a.description}`)
+            if (a.keywords) lines.push(`    keywords: ${a.keywords}`)
+          } else if (a.name) {
+            lines.push(`  [${b}] ${a.name}`)
+          }
+        })
+      }
     }
 
     const text = lines.join("\n")
@@ -294,50 +302,63 @@ export async function getSeenkaInsightForBrand(brandName: string, countryRaw: st
   }
 }
 
-export async function getSeenkaInsightForSector(sectorName: string, countryRaw: string): Promise<{ text: string } | null> {
+export async function getSeenkaInsightForSector(
+  sectorName: string,
+  countryRaw: string,
+  efemeridesName?: string
+): Promise<{ text: string } | null> {
   const apiKey = process.env.SEENKA_MCP_API_KEY
   if (!apiKey) return null
 
   const country = resolveCountry(countryRaw)
-  const days = 60
+  const days = 30
 
   try {
     const sessionId = await initSession(apiKey)
     if (!sessionId) return null
 
-    const brandsRaw = await callTool(apiKey, sessionId, "seenka_query", {
-      data: "brand", sector: sectorName, country: country, days_back: days, units: "airtime,frequency", limit: 10
-    }, 2)
-    
-    const supportsRaw = await callTool(apiKey, sessionId, "seenka_query", {
-      data: "support", sector: sectorName, country: country, days_back: days, units: "airtime,frequency", limit: 8
-    }, 3)
+    const efemKeyword = efemeridesName
+      ? efemeridesName.toLowerCase().replace(/día (de(l?|la)?|del)\s+/i, "").split(/\s+/)[0]
+      : null
 
-    const lines: string[] = []
-    lines.push("SECTOR: " + sectorName + " - ultimos " + days + " dias (" + country + ")")
-    lines.push("============================================")
-
-    const brands = parseRows(brandsRaw)
-    if (brands.length > 0) {
-      lines.push("")
-      lines.push("MARCAS DEL SECTOR:")
-      brands.forEach(function(b) {
-        const parts = []
-        if (b.airtime > 0) parts.push(formatAirtime(b.airtime))
-        if (b.frequency > 0) parts.push(formatNumber(b.frequency) + " veces")
-        lines.push("  - " + b.name + ": " + (parts.length > 0 ? parts.join(", ") : "sin datos"))
-      })
+    // Try efeméride keyword filter first, fallback to all sector assets
+    let assetsRaw = ""
+    if (efemKeyword) {
+      assetsRaw = await callTool(apiKey, sessionId, "seenka_query", {
+        data: "asset",
+        sector: sectorName,
+        country: country,
+        days_back: days,
+        include_filters: { keyword: efemKeyword },
+        limit: 12,
+      }, 2)
+    }
+    if (parseAssets(assetsRaw).length === 0) {
+      assetsRaw = await callTool(apiKey, sessionId, "seenka_query", {
+        data: "asset", sector: sectorName, country: country, days_back: days, limit: 12
+      }, 3)
     }
 
-    const supports = parseRows(supportsRaw)
-    if (supports.length > 0) {
+    const lines: string[] = []
+    lines.push(`SECTOR: ${sectorName} — últimos ${days} días (${country})`)
+    if (efemKeyword) lines.push(`FILTRO EFEMÉRIDE: "${efemeridesName || efemKeyword}"`)
+    lines.push("============================================")
+
+    const assets = parseAssets(assetsRaw)
+    if (assets.length > 0) {
       lines.push("")
-      lines.push("SOPORTES DEL SECTOR:")
-      supports.forEach(function(s) {
-        const parts = []
-        if (s.airtime > 0) parts.push(formatAirtime(s.airtime))
-        if (s.frequency > 0) parts.push(formatNumber(s.frequency) + " veces")
-        lines.push("  - " + s.name + ": " + (parts.length > 0 ? parts.join(", ") : "sin datos"))
+      lines.push(`QUÉ ESTÁN COMUNICANDO LAS MARCAS EN ${sectorName.toUpperCase()}:`)
+      const seen: Record<string, number> = {}
+      assets.forEach(function(a) {
+        const b = a.brands || "Marca"
+        seen[b] = (seen[b] || 0) + 1
+        if (seen[b] > 2) return
+        if (a.description) {
+          lines.push(`  [${b}] ${a.description}`)
+          if (a.keywords) lines.push(`    keywords: ${a.keywords}`)
+        } else if (a.name) {
+          lines.push(`  [${b}] ${a.name}`)
+        }
       })
     }
 
@@ -358,12 +379,12 @@ export async function callSeenkaTool(apiKey: string, sessionId: string, toolName
 }
 
 export async function getSeenkaDataForBrand(brandName: string, context: { efemeridesName?: string; country?: string }): Promise<string | null> {
-  const result = await getSeenkaInsightForBrand(brandName, context.country || "argentina")
+  const result = await getSeenkaInsightForBrand(brandName, context.country || "argentina", context.efemeridesName)
   return result ? result.text : null
 }
 
-export async function getSeenkaDataForSector(sectorName: string, country: string): Promise<string | null> {
-  const result = await getSeenkaInsightForSector(sectorName, country)
+export async function getSeenkaDataForSector(sectorName: string, country: string, efemeridesName?: string): Promise<string | null> {
+  const result = await getSeenkaInsightForSector(sectorName, country, efemeridesName)
   return result ? result.text : null
 }
 

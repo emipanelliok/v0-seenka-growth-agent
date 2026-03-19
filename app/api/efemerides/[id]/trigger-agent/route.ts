@@ -181,6 +181,7 @@ export async function POST(
             efemeridesName: efemeride.name,
             country: countryStr,
           })
+
         }
         if (mcpCache[primaryClient]) return mcpCache[primaryClient]
       }
@@ -189,7 +190,7 @@ export async function POST(
       if (efemeride.industries?.length > 0) {
         const sectorKey = `sector:${efemeride.industries[0]}:${countryStr}`
         if (!(sectorKey in mcpCache)) {
-          mcpCache[sectorKey] = await getSeenkaDataForSector(efemeride.industries[0], countryStr)
+          mcpCache[sectorKey] = await getSeenkaDataForSector(efemeride.industries[0], countryStr, efemeride.name)
         }
         if (mcpCache[sectorKey]) return mcpCache[sectorKey]
       }
