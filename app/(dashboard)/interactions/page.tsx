@@ -34,10 +34,12 @@ export default async function InteractionsPage() {
     : { data: [] }
 
   return (
-    <ConversationsView
-      interactions={interactions || []}
-      queueItems={queueItems || []}
-      champions={champions || []}
-    />
+    <div className="h-[calc(100vh-4rem)] overflow-hidden">
+      <ConversationsView
+        interactions={interactions || []}
+        queueItems={queueItems || []}
+        champions={champions || []}
+      />
+    </div>
   )
 }
