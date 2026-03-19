@@ -248,7 +248,7 @@ export function ConversationsView({ interactions, queueItems, champions }: Conve
           <h1 className="text-sm font-semibold">Conversaciones</h1>
           <p className="text-xs text-muted-foreground">{sorted.length} champions</p>
         </div>
-        <ScrollArea className="flex-1">
+        <div className="flex-1 min-h-0 overflow-y-auto">
           <div className="divide-y">
             {sorted.map((conv) => {
               const lastNonPending = [...conv.messages].reverse().find((m) => m.type !== "pending")
@@ -294,7 +294,7 @@ export function ConversationsView({ interactions, queueItems, champions }: Conve
               )
             })}
           </div>
-        </ScrollArea>
+        </div>
       </div>
 
       {/* ── Right panel: thread ── */}
@@ -328,7 +328,7 @@ export function ConversationsView({ interactions, queueItems, champions }: Conve
           </div>
 
           {/* Messages */}
-          <ScrollArea className="flex-1 px-5 py-4">
+          <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
             <div className="space-y-3 max-w-2xl mx-auto">
               {selected.messages
                 .filter((m) => m.type !== "pending")
@@ -337,7 +337,7 @@ export function ConversationsView({ interactions, queueItems, champions }: Conve
                 ))}
               <div ref={bottomRef} />
             </div>
-          </ScrollArea>
+          </div>
 
           {/* Pending approval boxes */}
           {selected.messages.some((m) => m.type === "pending") && (
