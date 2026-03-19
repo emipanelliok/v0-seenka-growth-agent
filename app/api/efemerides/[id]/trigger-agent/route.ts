@@ -341,10 +341,6 @@ REGLAS DURAS:
             subject_line: subjectLine,
             seenka_data_used: contextData?.substring(0, 2000) || null,
             status: "pending_review",
-            metadata: {
-              triggered_by: "trigger-agent",
-              client_names: clients.map((c: any) => c.client_name),
-            },
           })
           .select("id")
           .single()
