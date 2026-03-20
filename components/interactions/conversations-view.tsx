@@ -205,9 +205,10 @@ export function ConversationsView({ interactions, queueItems, champions, loadedA
   const [sendStatus, setSendStatus] = useState<"idle" | "sending" | "sent" | "error">("idle")
   const [sendError, setSendError] = useState("")
 
-  const handleDirectSend = async () => {
-    console.log("[send] Channel:", directChannel, "Message:", directMsg.trim().substring(0, 50), "Champion:", selected?.champion?.name)
+  const sendViaChannel = async (channel: "email" | "linkedin") => {
+    console.log("[send] Channel:", channel, "Message:", directMsg.trim().substring(0, 50), "Champion:", selected?.champion?.name)
     if (!directMsg.trim() || !selected) return
+    setDirectChannel(channel)
     setSendingDirect(true)
     setSendStatus("sending")
     setSendError("")
@@ -218,7 +219,7 @@ export function ConversationsView({ interactions, queueItems, champions, loadedA
         body: JSON.stringify({
           champion_id: selected.champion.id,
           message: directMsg.trim(),
-          channel: directChannel,
+          channel,
         }),
       })
       const data = await res.json()
@@ -241,6 +242,8 @@ export function ConversationsView({ interactions, queueItems, champions, loadedA
       setSendingDirect(false)
     }
   }
+
+  const handleDirectSend = () => sendViaChannel(directChannel)
 
   // Rewrite with Gastón
   const [rewriting, setRewriting] = useState(false)
@@ -571,33 +574,30 @@ export function ConversationsView({ interactions, queueItems, champions, loadedA
                 )}
               </div>
               <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const next = directChannel === "email" ? "linkedin" : "email"
-                    console.log("[toggle] Channel:", next)
-                    setDirectChannel(next)
-                  }}
-                  className={cn(
-                    "flex items-center justify-center h-9 px-2 rounded-md border transition-colors text-[11px] font-medium gap-1",
-                    directChannel === "email"
-                      ? "bg-blue-50 border-blue-200 text-blue-600"
-                      : "bg-sky-50 border-sky-200 text-sky-600"
-                  )}
-                  title={directChannel === "email" ? "Canal: Email — click para cambiar a LinkedIn" : "Canal: LinkedIn — click para cambiar a Email"}
-                >
-                  {directChannel === "email" ? <Mail className="h-3.5 w-3.5" /> : <Linkedin className="h-3.5 w-3.5" />}
-                  <span>{directChannel === "email" ? "Email" : "LinkedIn"}</span>
-                </button>
-                <Button
-                  size="sm"
-                  onClick={handleDirectSend}
-                  disabled={!directMsg.trim() || sendingDirect}
-                  className="h-9 px-3 gap-1.5"
-                >
-                  {sendingDirect ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  <span className="text-xs">Enviar</span>
-                </Button>
+                {selected.champion.email && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => sendViaChannel("email")}
+                    disabled={!directMsg.trim() || sendingDirect}
+                    className="h-9 px-3 gap-1.5 bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100"
+                  >
+                    {sendingDirect && directChannel === "email" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
+                    <span className="text-xs">Email</span>
+                  </Button>
+                )}
+                {selected.champion.linkedin_url && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => sendViaChannel("linkedin")}
+                    disabled={!directMsg.trim() || sendingDirect}
+                    className="h-9 px-3 gap-1.5 bg-sky-50 border-sky-200 text-sky-600 hover:bg-sky-100"
+                  >
+                    {sendingDirect && directChannel === "linkedin" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Linkedin className="h-3.5 w-3.5" />}
+                    <span className="text-xs">LinkedIn</span>
+                  </Button>
+                )}
               </div>
             </div>
           </div>
