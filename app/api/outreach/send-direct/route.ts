@@ -92,11 +92,21 @@ export async function POST(request: NextRequest) {
       if (!slugMatch) return NextResponse.json({ error: `LinkedIn URL inválida: ${champ.linkedin_url}` }, { status: 400 })
 
       const slug = slugMatch[1].replace(/\/+$/, "")
-      console.log("[send-direct] LinkedIn slug extracted:", slug, "from URL:", champ.linkedin_url)
+
+      // Debug: log exact values to catch whitespace/newline issues
+      const cleanDsn = unipileDsn.trim()
+      const cleanToken = unipileToken.trim()
+      const cleanAccountId = accountId.trim()
+
+      const lookupUrl = `https://${cleanDsn}/api/v1/users/${slug}?account_id=${cleanAccountId}`
+      console.log("[send-direct] LinkedIn lookup URL:", lookupUrl)
+      console.log("[send-direct] DSN length:", unipileDsn.length, "clean:", cleanDsn.length)
+      console.log("[send-direct] AccountID length:", accountId.length, "clean:", cleanAccountId.length)
+      console.log("[send-direct] Token length:", unipileToken.length, "clean:", cleanToken.length)
 
       // Get provider_id
-      const userRes = await fetch(`https://${unipileDsn}/api/v1/users/${slug}?account_id=${accountId}`, {
-        headers: { "X-API-KEY": unipileToken, "accept": "application/json" },
+      const userRes = await fetch(lookupUrl, {
+        headers: { "X-API-KEY": cleanToken, "accept": "application/json" },
       })
 
       if (!userRes.ok) {
@@ -118,7 +128,7 @@ export async function POST(request: NextRequest) {
 
       // Send message
       const formData = new FormData()
-      formData.append("account_id", accountId)
+      formData.append("account_id", cleanAccountId)
       formData.append("attendees_ids", providerId)
       formData.append("text", message)
 
