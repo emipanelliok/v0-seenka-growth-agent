@@ -159,6 +159,9 @@ export function ConversationsView({ interactions, queueItems, champions, loadedA
     })
     const replyRaw = ix.reply_content || ix.response
     if (replyRaw && ix.outcome === "responded") {
+      const replyTs = ix.reply_received_at || ix.created_at
+      // Update lastActivity if the reply is more recent
+      if (replyTs > c.lastActivity) c.lastActivity = replyTs
       const clean = stripQuoted(replyRaw)
       if (clean) {
         c.messages.push({
@@ -166,7 +169,7 @@ export function ConversationsView({ interactions, queueItems, champions, loadedA
           type: "champion",
           content: clean,
           channel: ix.channel,
-          timestamp: ix.created_at,
+          timestamp: replyTs,
           sentiment: ix.reply_sentiment,
         })
       }

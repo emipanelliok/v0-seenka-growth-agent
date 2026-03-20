@@ -178,8 +178,8 @@ async function processReply(supabase: any, matchedChampion: any, replyContent: s
       .update({ status: newStatus })
       .eq("id", matchedChampion.id)
 
-    // If LLM generated a response, save it as draft in outreach_queue
-    if (analysis.generatedResponse && analysis.action !== "close_lost") {
+    // If LLM generated a response, save it as draft in outreach_queue for review
+    if (analysis.generatedResponse) {
       const { error: queueError } = await supabase
         .from("outreach_queue")
         .insert({
@@ -340,7 +340,7 @@ ANALIZÁ LA RESPUESTA Y RESPONDÉ EN JSON:
   "sentiment": "positive | negative | neutral",
   "action": "string - qué hacer (ej: explain_seenka, send_more_info, schedule_call, close_lost, reactivate_later, wait)",
   "reasoning": "string breve",
-  "generatedResponse": "string - tu respuesta como Gastón (null si action es close_lost). Máx 80 palabras. Español argentino con voseo. Sin emojis. Firmá como 'Gastón\\nSeenka Media Intelligence'.",
+  "generatedResponse": "string - tu respuesta como Gastón. SIEMPRE generá una respuesta, incluso para cierres negativos (en ese caso, una despedida profesional breve). Máx 80 palabras. Español argentino con voseo. Sin emojis. Firmá como 'Gastón\\nSeenka Media Intelligence'.",
   "suggestedSubject": "string - asunto del email (null si no hay respuesta)"
 }
 
@@ -349,7 +349,7 @@ CÓMO RESPONDER SEGÚN LA SITUACIÓN:
 - Muestra interés / quiere avanzar: Mandale directo los $500 USD en créditos para que explore con su equipo: link seenka.com/refer + generá un código único tipo G seguido de 7 caracteres alfanuméricos random (ej: G7KM2X9P). Mencioná que si después quiere ver datos específicos de sus competidores, pueden agendar una charla de 15 min.
 - Pide más info: Compartí valor concreto sobre lo que podemos mostrarle de sus competidores + ofrecé los créditos.
 - 'No es el momento': Respondé amable, dejá la puerta abierta, no insistas.
-- No interesado / muy negativo: action close_lost, generatedResponse null.
+- No interesado / muy negativo: action close_lost. Igualmente generá una respuesta breve y profesional agradeciendo el tiempo y dejando la puerta abierta por si en el futuro le interesa.
 - IMPORTANTE: Siempre priorizá dar valor inmediato (créditos, datos) antes de pedir una reunión. La llamada es opcional, nunca el primer paso.
 ${playbook}
 Respondé SOLO el JSON, sin markdown ni texto extra.`,
@@ -428,64 +428,81 @@ async function extractAndEnrichFromSignature(supabase: any, championId: string, 
 
     if (!champ) return
 
-    const updates: Record<string, string> = {}
+    // Determine which fields are missing
+    const missingFields: string[] = []
+    if (!champ.phone) missingFields.push("phone")
+    if (!champ.linkedin_url) missingFields.push("linkedin_url")
+    if (!champ.title) missingFields.push("title")
+    if (!champ.website) missingFields.push("website")
 
-    // Extract phone numbers (Argentina, international, etc.)
-    if (!champ.phone) {
-      const phoneMatch = fullBody.match(/(?:(?:\+|00)\d{1,3}[\s.-]?)?\(?\d{2,4}\)?[\s.-]?\d{3,4}[\s.-]?\d{3,4}/)
-      // More specific: look for phone patterns near signature area
-      const signatureArea = extractSignatureArea(fullBody)
-      if (signatureArea) {
-        const phoneInSig = signatureArea.match(/(?:(?:Tel|Cel|Phone|Mobile|Ph|T|M)[.:]*\s*)?(\+?\d[\d\s()./-]{7,18}\d)/i)
-        if (phoneInSig) {
-          const cleanPhone = phoneInSig[1].replace(/[^\d+]/g, "")
-          if (cleanPhone.length >= 8) {
-            updates.phone = phoneInSig[1].trim()
-            console.log("[v0] Extracted phone from signature:", updates.phone)
-          }
-        }
-      }
+    if (missingFields.length === 0) {
+      console.log("[v0] Champion profile already complete, skipping signature extraction")
+      return
     }
 
-    // Extract LinkedIn URL
+    const updates: Record<string, string> = {}
+
+    // Step 1: Quick regex extraction for URLs (very reliable)
     if (!champ.linkedin_url) {
       const linkedinMatch = fullBody.match(/https?:\/\/(?:www\.)?linkedin\.com\/in\/[a-zA-Z0-9_-]+\/?/i)
       if (linkedinMatch) {
         updates.linkedin_url = linkedinMatch[0]
-        console.log("[v0] Extracted LinkedIn from signature:", updates.linkedin_url)
+        console.log("[v0] Extracted LinkedIn from signature (regex):", updates.linkedin_url)
       }
     }
 
-    // Extract website
-    if (!champ.website) {
-      const signatureArea = extractSignatureArea(fullBody)
-      if (signatureArea) {
-        // Look for URLs that aren't linkedin/google/social media
-        const urlMatch = signatureArea.match(/https?:\/\/(?:www\.)?(?!linkedin|facebook|twitter|instagram|google|outlook|microsoft)[a-zA-Z0-9][a-zA-Z0-9.-]+\.[a-z]{2,}[^\s)"]*/i)
-        if (urlMatch) {
-          updates.website = urlMatch[0]
-          console.log("[v0] Extracted website from signature:", updates.website)
+    // Step 2: Use LLM for robust extraction of remaining fields
+    const stillMissing = missingFields.filter(f => !updates[f])
+    if (stillMissing.length > 0) {
+      try {
+        const { text: extractionResult } = await generateText({
+          model: gateway("anthropic/claude-haiku-3-20240307"),
+          prompt: `Extract contact information from this email. Look at the signature area especially.
+
+EMAIL BODY:
+${fullBody.substring(0, 2000)}
+
+Extract ONLY these missing fields: ${stillMissing.join(", ")}
+
+Respond in JSON format:
+{
+  ${stillMissing.includes("phone") ? '"phone": "phone number with country code if available, or null",' : ""}
+  ${stillMissing.includes("linkedin_url") ? '"linkedin_url": "full LinkedIn profile URL, or null",' : ""}
+  ${stillMissing.includes("title") ? '"title": "job title/role, or null",' : ""}
+  ${stillMissing.includes("website") ? '"website": "company website URL (not social media), or null"' : ""}
+}
+
+Rules:
+- Only extract data that is clearly present in the email
+- For phone: include country code if visible (e.g., +54 11 1234-5678)
+- For title: extract the exact job title (e.g., "Director Comercial", "Head of Media")
+- For website: only company websites, not social media links
+- Return null for any field you can't find
+- Respond ONLY with the JSON, no other text`,
+          maxTokens: 200
+        })
+
+        const cleanedResult = extractionResult.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+        const extracted = JSON.parse(cleanedResult)
+
+        for (const field of stillMissing) {
+          if (extracted[field] && extracted[field] !== "null" && extracted[field] !== null) {
+            updates[field] = extracted[field]
+            console.log(`[v0] Extracted ${field} from signature (LLM):`, updates[field])
+          }
         }
-      }
-    }
-
-    // Extract title/role from signature
-    if (!champ.title) {
-      const signatureArea = extractSignatureArea(fullBody)
-      if (signatureArea) {
-        // Common patterns: "Name\nTitle\nCompany" or "Name | Title | Company"
-        const titlePatterns = [
-          /(?:^|\n)\s*(?:CEO|CTO|COO|CFO|CMO|VP|Director|Head|Manager|Gerente|Jefe|Coordinador|Líder|Fundador|Co-?Founder|Partner|Socio|Analista|Ejecutiv[oa]|Responsable|Lead|Senior|Sr\.?|Jr\.?)[^\n]{0,60}/im,
-          /(?:Cargo|Position|Title|Rol)[:\s]+([^\n]+)/i,
-        ]
-        for (const pattern of titlePatterns) {
-          const match = signatureArea.match(pattern)
-          if (match) {
-            const title = (match[1] || match[0]).trim().replace(/^[\s|·—-]+/, "").trim()
-            if (title.length > 3 && title.length < 80) {
-              updates.title = title
-              console.log("[v0] Extracted title from signature:", updates.title)
-              break
+      } catch (llmError) {
+        console.error("[v0] LLM extraction failed, falling back to regex:", llmError)
+        // Fallback regex for phone
+        if (!champ.phone && !updates.phone) {
+          const signatureArea = extractSignatureArea(fullBody)
+          if (signatureArea) {
+            const phoneInSig = signatureArea.match(/(?:(?:Tel|Cel|Phone|Mobile|Ph|T|M)[.:]*\s*)?(\+?\d[\d\s()./-]{7,18}\d)/i)
+            if (phoneInSig) {
+              const cleanPhone = phoneInSig[1].replace(/[^\d+]/g, "")
+              if (cleanPhone.length >= 8) {
+                updates.phone = phoneInSig[1].trim()
+              }
             }
           }
         }
@@ -502,8 +519,10 @@ async function extractAndEnrichFromSignature(supabase: any, championId: string, 
       if (error) {
         console.error("[v0] Error enriching champion from signature:", error)
       } else {
-        console.log("[v0] Champion enriched from email signature:", Object.keys(updates).join(", "))
+        console.log("[v0] Champion enriched from email signature:", JSON.stringify(updates))
       }
+    } else {
+      console.log("[v0] No enrichment data found in email signature")
     }
   } catch (err) {
     console.error("[v0] Error in extractAndEnrichFromSignature:", err)
