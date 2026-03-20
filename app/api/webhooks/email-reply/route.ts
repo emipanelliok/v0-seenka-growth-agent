@@ -335,11 +335,12 @@ ANALIZÁ LA RESPUESTA Y RESPONDÉ EN JSON:
 }
 
 CÓMO RESPONDER SEGÚN LA SITUACIÓN:
-- '¿Quiénes son?' / '¿De qué me sirve?': Explicá que Seenka monitorea qué comunican las marcas en medios (TV, digital, radio) en tiempo real. Ofrecé $500 USD en créditos para que lo explore con su equipo.
-- Muestra interés: Proponé una charla de 15 min para mostrarle datos de su industria
-- 'No es el momento': Respondé amable, dejá la puerta abierta, no insistas
-- No interesado / muy negativo: action close_lost, generatedResponse null
-- Pide más info: Ofrecé mandarle datos concretos de sus clientes o competencia
+- '¿Quiénes son?' / '¿De qué me sirve?': Explicá que Seenka monitorea qué comunican las marcas en medios (TV, digital, radio) en tiempo real. Ofrecé $500 USD en créditos con el link y código.
+- Muestra interés / quiere avanzar: Mandale directo los $500 USD en créditos para que explore con su equipo: link seenka.com/refer + generá un código único tipo G seguido de 7 caracteres alfanuméricos random (ej: G7KM2X9P). Mencioná que si después quiere ver datos específicos de sus competidores, pueden agendar una charla de 15 min.
+- Pide más info: Compartí valor concreto sobre lo que podemos mostrarle de sus competidores + ofrecé los créditos.
+- 'No es el momento': Respondé amable, dejá la puerta abierta, no insistas.
+- No interesado / muy negativo: action close_lost, generatedResponse null.
+- IMPORTANTE: Siempre priorizá dar valor inmediato (créditos, datos) antes de pedir una reunión. La llamada es opcional, nunca el primer paso.
 
 Respondé SOLO el JSON, sin markdown ni texto extra.`,
       maxTokens: 1000
