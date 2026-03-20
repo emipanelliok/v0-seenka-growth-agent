@@ -17,15 +17,25 @@ export async function POST(
     // Get the interaction
     const { data: interaction, error: ixError } = await supabase
       .from("interactions")
-      .select("*, champions(id, name, company, role, email, linkedin_url, client_name, client_industry)")
+      .select("id, champion_id, message, reply_content, response, outcome, channel, efemeride_id, created_at")
       .eq("id", id)
       .single()
 
     if (ixError || !interaction) {
+      console.error("suggest-reply: interaction not found", id, ixError)
       return NextResponse.json({ error: "Interacción no encontrada" }, { status: 404 })
     }
 
-    const champion = interaction.champions as Record<string, string>
+    // Get champion separately
+    const { data: champion } = await supabase
+      .from("champions")
+      .select("id, name, company, role, email, linkedin_url")
+      .eq("id", interaction.champion_id)
+      .single()
+
+    if (!champion) {
+      return NextResponse.json({ error: "Champion no encontrado" }, { status: 404 })
+    }
     const replyRaw = interaction.reply_content || interaction.response || ""
 
     // Strip email signature and quoted text from the reply
@@ -72,7 +82,7 @@ export async function POST(
 
 CONTEXTO:
 - Estás hablando con ${champion.name} (${champion.role || "ejecutivo"} en ${champion.company || "su empresa"})
-- Su cliente/sector: ${champion.client_name || champion.client_industry || "publicidad"}
+- Rol: ${champion.role || "ejecutivo"}
 - Canal: ${interaction.channel === "email" ? "email" : "LinkedIn"}
 
 HISTORIAL DE CONVERSACIÓN:
