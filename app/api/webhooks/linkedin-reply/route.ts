@@ -87,6 +87,14 @@ async function findChampionByLinkedIn(supabase: any, senderIdentifier: string, p
 }
 
 async function processLinkedInReply(supabase: any, champion: any, messageText: string | null, payload: any) {
+  // Get champion with user_id (needed for outreach_queue inserts)
+  const { data: fullChampion } = await supabase
+    .from("champions")
+    .select("user_id")
+    .eq("id", champion.id)
+    .single()
+  const ownerId = fullChampion?.user_id
+
   // Get last interaction for this champion
   const { data: lastInteraction } = await supabase
     .from("interactions")
@@ -150,6 +158,7 @@ async function processLinkedInReply(supabase: any, champion: any, messageText: s
   // Save Gastón's draft response
   if (analysis.generatedResponse && analysis.action !== "close_lost") {
     await supabase.from("outreach_queue").insert({
+      user_id: ownerId,
       champion_id: champion.id,
       channel: "linkedin",
       message: analysis.generatedResponse,

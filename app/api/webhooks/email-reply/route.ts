@@ -104,12 +104,18 @@ export async function POST(request: NextRequest) {
 // Process reply from champion with agentic LLM
 async function processReply(supabase: any, matchedChampion: any, replyContent: string | null, subject: string | null) {
   try {
-    // Get champion details and last message sent
+    // Get champion details and the owning user_id (needed for outreach_queue inserts)
     const { data: championData } = await supabase
       .from("champions")
       .select("*, champion_clients(client_name)")
       .eq("id", matchedChampion.id)
       .single()
+
+    // user_id is required for outreach_queue — get it from the champion's owner
+    const ownerId = championData?.user_id
+    if (!ownerId) {
+      console.log("[v0] Warning: champion has no user_id")
+    }
 
     // Find the most recent interaction/message sent to this champion
     const { data: lastInteraction } = await supabase
@@ -168,6 +174,7 @@ async function processReply(supabase: any, matchedChampion: any, replyContent: s
       const { error: queueError } = await supabase
         .from("outreach_queue")
         .insert({
+          user_id: ownerId,
           champion_id: matchedChampion.id,
           channel: "email",
           message: analysis.generatedResponse,
