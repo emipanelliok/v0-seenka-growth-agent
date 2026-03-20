@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
-  Mail, Linkedin, Loader2, Pencil, X, MessageSquare, Sparkles,
+  Mail, Linkedin, Loader2, Pencil, X, MessageSquare, Sparkles, RefreshCw,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -50,6 +50,7 @@ interface ConversationsViewProps {
   interactions: InteractionData[]
   queueItems: QueueItem[]
   champions: ChampionInfo[]
+  loadedAt?: string
 }
 
 interface ThreadMsg {
@@ -97,7 +98,7 @@ function timeLabel(ts: string): string {
   return d.toLocaleDateString("es-AR", { day: "numeric", month: "short" })
 }
 
-export function ConversationsView({ interactions, queueItems, champions }: ConversationsViewProps) {
+export function ConversationsView({ interactions, queueItems, champions, loadedAt }: ConversationsViewProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [localQueue, setLocalQueue] = useState(queueItems)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -187,8 +188,24 @@ export function ConversationsView({ interactions, queueItems, champions }: Conve
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-refresh every 30 seconds
+  const [lastRefresh, setLastRefresh] = useState(loadedAt || new Date().toISOString())
+  const [secondsUntilRefresh, setSecondsUntilRefresh] = useState(30)
+
   useEffect(() => {
-    const interval = setInterval(() => router.refresh(), 30000)
+    setLastRefresh(loadedAt || new Date().toISOString())
+    setSecondsUntilRefresh(30)
+  }, [loadedAt])
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setSecondsUntilRefresh((prev) => {
+        if (prev <= 1) {
+          router.refresh()
+          return 30
+        }
+        return prev - 1
+      })
+    }, 1000)
     return () => clearInterval(interval)
   }, [router])
 
@@ -327,19 +344,30 @@ export function ConversationsView({ interactions, queueItems, champions }: Conve
                 {[selected.champion.role, selected.champion.company].filter(Boolean).join(" @ ")}
               </p>
             </div>
-            <div className="flex items-center gap-1.5">
-              {selected.champion.email && (
-                <Badge variant="outline" className="gap-1 text-xs py-0.5">
-                  <Mail className="h-3 w-3" />
-                  Email
-                </Badge>
-              )}
-              {selected.champion.linkedin_url && (
-                <Badge variant="outline" className="gap-1 text-xs py-0.5">
-                  <Linkedin className="h-3 w-3" />
-                  LinkedIn
-                </Badge>
-              )}
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => { router.refresh(); setSecondsUntilRefresh(30) }}
+                className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                title="Actualizar ahora"
+              >
+                <RefreshCw className="h-3 w-3" />
+                <span>Actualiza en {secondsUntilRefresh}s</span>
+              </button>
+              <div className="flex items-center gap-1.5">
+                {selected.champion.email && (
+                  <Badge variant="outline" className="gap-1 text-xs py-0.5">
+                    <Mail className="h-3 w-3" />
+                    Email
+                  </Badge>
+                )}
+                {selected.champion.linkedin_url && (
+                  <Badge variant="outline" className="gap-1 text-xs py-0.5">
+                    <Linkedin className="h-3 w-3" />
+                    LinkedIn
+                  </Badge>
+                )}
+              </div>
             </div>
           </div>
 

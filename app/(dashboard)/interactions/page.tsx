@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { ConversationsView } from "@/components/interactions/conversations-view"
 
 export default async function InteractionsPage() {
@@ -6,14 +7,20 @@ export default async function InteractionsPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
+  // Admin client bypasses RLS — needed because webhook inserts without user_id
+  const admin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
   // Load all interactions (ascending so thread is in order)
-  const { data: interactions } = await supabase
+  const { data: interactions } = await admin
     .from("interactions")
     .select("id, champion_id, message, response, reply_content, reply_sentiment, outcome, channel, insight, created_at")
     .order("created_at", { ascending: true })
 
-  // Load pending/approved outreach queue items (no user_id filter — webhook creates without user_id)
-  const { data: queueItems } = await supabase
+  // Load pending/approved outreach queue items
+  const { data: queueItems } = await admin
     .from("outreach_queue")
     .select("id, champion_id, message, subject_line, channel, status, created_at, efemeride_id")
     .in("status", ["pending_review", "approved"])
@@ -26,11 +33,13 @@ export default async function InteractionsPage() {
   ])
 
   const { data: champions } = champIds.size > 0
-    ? await supabase
+    ? await admin
         .from("champions")
         .select("id, name, company, role, email, linkedin_url")
         .in("id", [...champIds])
     : { data: [] }
+
+  const loadedAt = new Date().toISOString()
 
   return (
     <div className="h-[calc(100vh-4rem)] overflow-hidden">
@@ -38,6 +47,7 @@ export default async function InteractionsPage() {
         interactions={interactions || []}
         queueItems={queueItems || []}
         champions={champions || []}
+        loadedAt={loadedAt}
       />
     </div>
   )
