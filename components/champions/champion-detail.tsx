@@ -81,6 +81,7 @@ export function ChampionDetail({ champion, triggers, interactions }: ChampionDet
   const [makeSent, setMakeSent] = useState(false)
   const [isRefreshingLinkedIn, setIsRefreshingLinkedIn] = useState(false)
   const [refreshError, setRefreshError] = useState<string | null>(null)
+  const [isEnrichingSocial, setIsEnrichingSocial] = useState(false)
   const [fieldConfigs, setFieldConfigs] = useState<Array<{linkedinField: string, dbField: string, visible: boolean}>>([])
   const [companyData, setCompanyData] = useState<Company | null>(null)
   const [isAnalyzingCompany, setIsAnalyzingCompany] = useState(false)
@@ -338,6 +339,29 @@ export function ChampionDetail({ champion, triggers, interactions }: ChampionDet
       setRefreshError(error instanceof Error ? error.message : "Error desconocido")
     } finally {
       setIsRefreshingLinkedIn(false)
+    }
+  }
+
+  const handleEnrichSocial = async () => {
+    setIsEnrichingSocial(true)
+    try {
+      const response = await fetch("/api/ai/enrich-social", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ championId: champion.id }),
+      })
+
+      if (!response.ok) {
+        const err = await response.json()
+        throw new Error(err.error || "Error buscando redes sociales")
+      }
+
+      router.refresh()
+    } catch (error) {
+      console.error("Error enriching social:", error)
+      alert(error instanceof Error ? error.message : "Error buscando redes sociales")
+    } finally {
+      setIsEnrichingSocial(false)
     }
   }
 
@@ -601,6 +625,8 @@ export function ChampionDetail({ champion, triggers, interactions }: ChampionDet
         onGenerateMessage={function() { setGenerateDialogOpen(true) }}
         hasCompanyData={!!companyData}
         hasTriggers={triggers.length > 0}
+        onEnrichSocial={handleEnrichSocial}
+        isEnrichingSocial={isEnrichingSocial}
       />
 
       {/* AI Profile Summary */}

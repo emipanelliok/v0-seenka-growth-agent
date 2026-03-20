@@ -81,7 +81,17 @@ export interface Champion {
   enrichment_status?: 'pending' | 'enriching' | 'complete' | 'error' | null
   enrichment_error?: string | null
   ai_profile_summary?: string | null
+  phone?: string | null
+  social_profiles?: Record<string, SocialProfileEntry> | null
   created_at: string
+}
+
+export interface SocialProfileEntry {
+  url: string
+  handle?: string | null
+  source: string
+  confidence: 'high' | 'medium' | 'low'
+  found_at?: string
 }
 
 export interface Trigger {

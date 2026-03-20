@@ -17,9 +17,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { 
-  Mail, 
-  Linkedin, 
+import {
+  Mail,
+  Linkedin,
   Phone,
   MapPin,
   Building2,
@@ -31,9 +31,25 @@ import {
   ExternalLink,
   Copy,
   Check,
+  Instagram,
+  Twitter,
+  Facebook,
+  Github,
+  Search,
+  Globe,
 } from "lucide-react"
 import type { Champion, ChampionStatus } from "@/lib/types"
 import { STATUS_LABELS, LEVEL_LABELS, CHAMPION_TYPE_LABELS } from "@/lib/types"
+
+const SOCIAL_ICONS: Record<string, { icon: any; label: string; color: string }> = {
+  instagram: { icon: Instagram, label: "Instagram", color: "hover:text-pink-500" },
+  twitterx: { icon: Twitter, label: "X / Twitter", color: "hover:text-sky-500" },
+  facebook: { icon: Facebook, label: "Facebook", color: "hover:text-blue-600" },
+  github: { icon: Github, label: "GitHub", color: "hover:text-foreground" },
+  tiktok: { icon: Globe, label: "TikTok", color: "hover:text-foreground" },
+  youtube: { icon: Globe, label: "YouTube", color: "hover:text-red-500" },
+  twitter: { icon: Twitter, label: "Twitter", color: "hover:text-sky-500" },
+}
 
 interface ChampionProfileHeaderProps {
   champion: Champion
@@ -47,6 +63,8 @@ interface ChampionProfileHeaderProps {
   onGenerateMessage: () => void
   hasCompanyData: boolean
   hasTriggers: boolean
+  onEnrichSocial?: () => void
+  isEnrichingSocial?: boolean
 }
 
 export function ChampionProfileHeader({
@@ -61,6 +79,8 @@ export function ChampionProfileHeader({
   onGenerateMessage,
   hasCompanyData,
   hasTriggers,
+  onEnrichSocial,
+  isEnrichingSocial,
 }: ChampionProfileHeaderProps) {
   const [copiedEmail, setCopiedEmail] = useState(false)
 
@@ -227,6 +247,39 @@ export function ChampionProfileHeader({
           )}
         </div>
 
+        {/* Social profiles */}
+        {champion.social_profiles && Object.keys(champion.social_profiles).length > 0 && (
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+            {Object.entries(champion.social_profiles).map(([key, profile]) => {
+              const social = SOCIAL_ICONS[key]
+              if (!social || !profile?.url) return null
+              const Icon = social.icon
+              return (
+                <a
+                  key={key}
+                  href={profile.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`flex items-center gap-1.5 text-muted-foreground ${social.color} transition-colors`}
+                  title={`${social.label}${profile.handle ? ` (${profile.handle})` : ""}`}
+                >
+                  <Icon className="h-4 w-4" />
+                  <span className="text-xs">{profile.handle || social.label}</span>
+                  <ExternalLink className="h-3 w-3 opacity-50" />
+                </a>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Phone */}
+        {champion.phone && (
+          <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+            <Phone className="h-4 w-4" />
+            <span>{champion.phone}</span>
+          </div>
+        )}
+
         {/* Headline */}
         {champion.headline && (
           <p className="mt-4 text-sm text-muted-foreground leading-relaxed">
@@ -246,6 +299,21 @@ export function ChampionProfileHeader({
             <Button size="sm" onClick={onGenerateMessage}>
               <Sparkles className="mr-2 h-4 w-4" />
               Generar Mensaje
+            </Button>
+          )}
+          {onEnrichSocial && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onEnrichSocial}
+              disabled={isEnrichingSocial}
+            >
+              {isEnrichingSocial ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Search className="mr-2 h-4 w-4" />
+              )}
+              {isEnrichingSocial ? "Buscando..." : "Buscar redes sociales"}
             </Button>
           )}
         </div>
