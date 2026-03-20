@@ -127,7 +127,7 @@ export function GastonChatPanel({ open, onOpenChange }: GastonChatPanelProps) {
             <Button
               type="submit"
               size="icon"
-              disabled={isLoading || !input.trim()}
+              disabled={isLoading || !(input || "").trim()}
               className="shrink-0"
             >
               {isLoading ? (
