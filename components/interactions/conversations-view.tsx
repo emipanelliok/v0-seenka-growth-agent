@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
-  Mail, Linkedin, Loader2, Pencil, X, MessageSquare, Sparkles, RefreshCw, Send,
+  Mail, Linkedin, Loader2, Pencil, X, MessageSquare, Sparkles, RefreshCw, Send, Check, CheckCheck, AlertCircle,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -33,6 +33,8 @@ interface InteractionData {
   channel: string
   insight: string | null
   created_at: string
+  sent_at?: string | null
+  reply_received_at?: string | null
 }
 
 interface QueueItem {
@@ -61,6 +63,7 @@ interface ThreadMsg {
   timestamp: string
   sentiment?: string | null
   queueItem?: QueueItem
+  sendStatus?: "sending" | "sent" | "delivered" | "failed"
 }
 
 // Strip quoted reply lines, email signatures and thread history
@@ -139,12 +142,20 @@ export function ConversationsView({ interactions, queueItems, champions, loadedA
   for (const ix of sortedInteractions) {
     const c = ensure(ix.champion_id, ix.created_at)
     if (!c) continue
+    // Determine send status
+    const sendStatus: ThreadMsg["sendStatus"] = ix.outcome === "responded"
+      ? "delivered"
+      : ix.sent_at
+        ? "sent"
+        : "failed"
+
     c.messages.push({
       id: `sent-${ix.id}`,
       type: "gaston",
       content: ix.message,
       channel: ix.channel,
       timestamp: ix.created_at,
+      sendStatus,
     })
     const replyRaw = ix.reply_content || ix.response
     if (replyRaw && ix.outcome === "responded") {
@@ -191,10 +202,14 @@ export function ConversationsView({ interactions, queueItems, champions, loadedA
   const [directMsg, setDirectMsg] = useState("")
   const [directChannel, setDirectChannel] = useState<"email" | "linkedin">("email")
   const [sendingDirect, setSendingDirect] = useState(false)
+  const [sendStatus, setSendStatus] = useState<"idle" | "sending" | "sent" | "error">("idle")
+  const [sendError, setSendError] = useState("")
 
   const handleDirectSend = async () => {
     if (!directMsg.trim() || !selected) return
     setSendingDirect(true)
+    setSendStatus("sending")
+    setSendError("")
     try {
       const res = await fetch("/api/outreach/send-direct", {
         method: "POST",
@@ -208,12 +223,19 @@ export function ConversationsView({ interactions, queueItems, champions, loadedA
       const data = await res.json()
       if (res.ok) {
         setDirectMsg("")
-        window.location.reload()
+        setSendStatus("sent")
+        setTimeout(() => {
+          setSendStatus("idle")
+          window.location.reload()
+        }, 1500)
       } else {
-        alert(data.error || "Error al enviar")
+        setSendStatus("error")
+        setSendError(data.error || "Error al enviar")
       }
     } catch (err) {
       console.error("Direct send error:", err)
+      setSendStatus("error")
+      setSendError("Error de conexión")
     } finally {
       setSendingDirect(false)
     }
@@ -473,6 +495,26 @@ export function ConversationsView({ interactions, queueItems, champions, loadedA
 
           {/* Direct send input */}
           <div className="flex-shrink-0 border-t bg-background px-4 py-3">
+            {/* Send status feedback */}
+            {sendStatus === "sent" && (
+              <div className="flex items-center gap-1.5 text-xs text-emerald-600 mb-2 max-w-2xl mx-auto">
+                <Check className="h-3.5 w-3.5" />
+                <span>Mensaje enviado por {directChannel === "email" ? "email" : "LinkedIn"}</span>
+              </div>
+            )}
+            {sendStatus === "error" && (
+              <div className="flex items-center gap-1.5 text-xs text-destructive mb-2 max-w-2xl mx-auto">
+                <AlertCircle className="h-3.5 w-3.5" />
+                <span>{sendError}</span>
+                <button type="button" onClick={() => setSendStatus("idle")} className="ml-1 underline">cerrar</button>
+              </div>
+            )}
+            {sendStatus === "sending" && (
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2 max-w-2xl mx-auto">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <span>Enviando por {directChannel === "email" ? "email" : "LinkedIn"}...</span>
+              </div>
+            )}
             <div className="flex items-end gap-2 max-w-2xl mx-auto">
               <div className="flex-1 relative">
                 <Textarea
@@ -578,6 +620,19 @@ function ChatBubble({ msg, champion }: { msg: ThreadMsg; champion: ChampionInfo 
             <Mail className="h-3 w-3 text-muted-foreground" />
           ) : (
             <Linkedin className="h-3 w-3 text-muted-foreground" />
+          )}
+          {isGaston && msg.sendStatus && (
+            <span className="flex items-center gap-0.5" title={
+              msg.sendStatus === "delivered" ? "Entregado y respondido"
+                : msg.sendStatus === "sent" ? "Enviado"
+                : msg.sendStatus === "failed" ? "Error al enviar"
+                : "Enviando..."
+            }>
+              {msg.sendStatus === "delivered" && <CheckCheck className="h-3 w-3 text-blue-500" />}
+              {msg.sendStatus === "sent" && <Check className="h-3 w-3 text-muted-foreground" />}
+              {msg.sendStatus === "failed" && <AlertCircle className="h-3 w-3 text-destructive" />}
+              {msg.sendStatus === "sending" && <Loader2 className="h-3 w-3 text-muted-foreground animate-spin" />}
+            </span>
           )}
           {senti && (
             <Badge

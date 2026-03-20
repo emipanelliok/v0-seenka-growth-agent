@@ -16,7 +16,7 @@ export default async function InteractionsPage() {
   // Load all interactions (ascending so thread is in order)
   const { data: interactions } = await admin
     .from("interactions")
-    .select("id, champion_id, message, response, reply_content, reply_sentiment, outcome, channel, insight, created_at")
+    .select("id, champion_id, message, response, reply_content, reply_sentiment, outcome, channel, insight, created_at, sent_at, reply_received_at")
     .order("created_at", { ascending: true })
 
   // Load pending/approved outreach queue items
