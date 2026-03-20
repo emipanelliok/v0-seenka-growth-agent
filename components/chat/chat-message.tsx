@@ -6,11 +6,39 @@ import { useState } from "react"
 
 interface ChatMessageProps {
   role: "user" | "assistant" | "tool" | "system"
-  content: string
+  parts?: any[]
+  content?: string
   toolInvocations?: any[]
 }
 
-export function ChatMessage({ role, content, toolInvocations }: ChatMessageProps) {
+// Extract text content from a message (supports both UIMessage parts and legacy content)
+function getTextContent(props: ChatMessageProps): string {
+  // If parts array exists (UIMessage v3 format), extract text parts
+  if (props.parts && Array.isArray(props.parts)) {
+    return props.parts
+      .filter((p: any) => p.type === "text")
+      .map((p: any) => p.text || "")
+      .join("")
+  }
+  // Fallback to content string
+  if (typeof props.content === "string") return props.content
+  return ""
+}
+
+// Extract tool invocations from parts
+function getToolInvocations(props: ChatMessageProps): any[] {
+  const fromParts = props.parts
+    ?.filter((p: any) => p.type === "tool-invocation")
+    || []
+  const fromProp = props.toolInvocations || []
+  return fromParts.length > 0 ? fromParts : fromProp
+}
+
+export function ChatMessage(props: ChatMessageProps) {
+  const { role } = props
+  const content = getTextContent(props)
+  const toolInvocations = getToolInvocations(props)
+
   return (
     <div className={cn("flex gap-3 px-4 py-3", role === "user" && "flex-row-reverse")}>
       {/* Avatar */}
@@ -28,7 +56,7 @@ export function ChatMessage({ role, content, toolInvocations }: ChatMessageProps
       {/* Content */}
       <div className={cn("flex flex-col gap-2 max-w-[85%]", role === "user" && "items-end")}>
         {/* Tool invocations */}
-        {toolInvocations && toolInvocations.length > 0 && (
+        {toolInvocations.length > 0 && (
           <div className="space-y-2">
             {toolInvocations.map((invocation: any, i: number) => (
               <ToolInvocationCard key={i} invocation={invocation} />
@@ -43,7 +71,7 @@ export function ChatMessage({ role, content, toolInvocations }: ChatMessageProps
               "rounded-2xl px-4 py-2.5 text-sm leading-relaxed",
               role === "user"
                 ? "bg-primary text-primary-foreground rounded-br-md"
-                : "bg-muted text-foreground rounded-bl-md prose prose-sm max-w-none dark:prose-invert"
+                : "bg-muted text-foreground rounded-bl-md"
             )}
           >
             {role === "assistant" ? (
@@ -60,8 +88,10 @@ export function ChatMessage({ role, content, toolInvocations }: ChatMessageProps
 
 function ToolInvocationCard({ invocation }: { invocation: any }) {
   const [expanded, setExpanded] = useState(false)
-  const toolName = invocation.toolName || "herramienta"
-  const state = invocation.state // "call" | "result" | "partial-call"
+  // Support both formats: { toolName } and { toolInvocation: { toolName } }
+  const toolCall = invocation.toolInvocation || invocation
+  const toolName = toolCall.toolName || toolCall.name || "herramienta"
+  const state = toolCall.state // "call" | "result" | "partial-call"
   const isLoading = state === "call" || state === "partial-call"
 
   const displayName = toolDisplayNames[toolName] || toolName.replace(/_/g, " ")
@@ -77,20 +107,18 @@ function ToolInvocationCard({ invocation }: { invocation: any }) {
         {isLoading ? (
           <span className="ml-auto text-muted-foreground animate-pulse">Ejecutando...</span>
         ) : (
-          <>
-            <span className="ml-auto text-muted-foreground">
-              {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-            </span>
-          </>
+          <span className="ml-auto text-muted-foreground">
+            {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+          </span>
         )}
       </button>
 
-      {expanded && invocation.result && (
+      {expanded && toolCall.result && (
         <div className="border-t px-3 py-2 bg-muted/30">
           <pre className="text-xs text-muted-foreground overflow-auto max-h-48 whitespace-pre-wrap">
-            {typeof invocation.result === "string"
-              ? invocation.result
-              : JSON.stringify(invocation.result, null, 2)}
+            {typeof toolCall.result === "string"
+              ? toolCall.result
+              : JSON.stringify(toolCall.result, null, 2)}
           </pre>
         </div>
       )}

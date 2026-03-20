@@ -109,8 +109,9 @@ export function GastonChatPanel({ open, onOpenChange }: GastonChatPanelProps) {
                 <ChatMessage
                   key={msg.id}
                   role={msg.role as any}
-                  content={typeof msg.content === "string" ? msg.content : ""}
-                  toolInvocations={(msg as any).toolInvocations || (msg as any).parts?.filter((p: any) => p.type === "tool-invocation")}
+                  parts={(msg as any).parts}
+                  content={(msg as any).content}
+                  toolInvocations={(msg as any).toolInvocations}
                 />
               ))}
               {isLoading && messages[messages.length - 1]?.role === "user" && (
