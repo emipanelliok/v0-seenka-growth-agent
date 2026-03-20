@@ -12,11 +12,10 @@ export default async function InteractionsPage() {
     .select("id, champion_id, message, response, reply_content, reply_sentiment, outcome, channel, insight, created_at")
     .order("created_at", { ascending: true })
 
-  // Load pending/approved outreach queue items
+  // Load pending/approved outreach queue items (no user_id filter — webhook creates without user_id)
   const { data: queueItems } = await supabase
     .from("outreach_queue")
     .select("id, champion_id, message, subject_line, channel, status, created_at, efemeride_id")
-    .eq("user_id", user.id)
     .in("status", ["pending_review", "approved"])
     .order("created_at", { ascending: true })
 

@@ -169,19 +169,10 @@ async function processReply(supabase: any, matchedChampion: any, replyContent: s
         .from("outreach_queue")
         .insert({
           champion_id: matchedChampion.id,
-          trigger_id: null,
           channel: "email",
           message: analysis.generatedResponse,
           subject_line: analysis.suggestedSubject || `Re: ${subject || "Seguimiento"}`,
-          status: "pending_review", // Goes to bandeja for approval
-          priority: analysis.action === "schedule_call" ? 1 : 2,
-          metadata: {
-            auto_generated: true,
-            reply_to: subject,
-            intent_detected: analysis.intent,
-            action_type: analysis.action,
-            reasoning: analysis.reasoning
-          }
+          status: "pending_review"
         })
       
       if (queueError) {

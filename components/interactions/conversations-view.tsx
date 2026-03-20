@@ -186,6 +186,12 @@ export function ConversationsView({ interactions, queueItems, champions }: Conve
     if (!selectedId && sorted.length > 0) setSelectedId(sorted[0].champion.id)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Auto-refresh every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => router.refresh(), 30000)
+    return () => clearInterval(interval)
+  }, [router])
+
   // Scroll to bottom when switching conversations
   useEffect(() => {
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100)
