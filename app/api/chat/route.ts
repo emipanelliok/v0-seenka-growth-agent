@@ -1,4 +1,4 @@
-import { streamText } from "ai"
+import { streamText, convertToModelMessages } from "ai"
 import { gateway } from "@ai-sdk/gateway"
 import { createClient } from "@/lib/supabase/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
@@ -108,10 +108,15 @@ ${playbook}${learningsContext}
 
 IMPORTANTE: Siempre priorizá dar valor inmediato. Los créditos de $500 USD (seenka.com/refer) son tu mejor herramienta de apertura.`
 
+    // Convert UI messages (parts format) to model messages (content format)
+    const modelMessages = convertToModelMessages(messages)
+
+    console.log("[chat] Received", messages.length, "UI messages, converted to", modelMessages.length, "model messages")
+
     const result = streamText({
       model: gateway("anthropic/claude-sonnet-4-20250514"),
       system: systemPrompt,
-      messages,
+      messages: modelMessages,
       tools,
       maxSteps: 5,
       onFinish: async ({ text, toolCalls }) => {
