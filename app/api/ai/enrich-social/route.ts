@@ -118,24 +118,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Error analizando resultados" }, { status: 500 })
     }
 
-    // Merge with existing data from linkedin_data (PDL may have twitter, facebook, github)
-    const existingLinkedinData = champion.linkedin_data || {}
+    // Merge with existing social profiles
     const existingSocial = champion.social_profiles || {}
-
     const socialProfiles: Record<string, any> = { ...existingSocial }
 
-    // Add profiles from PDL/existing data if not already found
-    if (existingLinkedinData.twitter_url && !socialProfiles.twitter) {
-      socialProfiles.twitter = { url: existingLinkedinData.twitter_url, source: "pdl", confidence: "high" }
-    }
-    if (existingLinkedinData.facebook_url && !socialProfiles.facebook) {
-      socialProfiles.facebook = { url: existingLinkedinData.facebook_url, source: "pdl", confidence: "high" }
-    }
-    if (existingLinkedinData.github_url && !socialProfiles.github) {
-      socialProfiles.github = { url: existingLinkedinData.github_url, source: "pdl", confidence: "high" }
-    }
-
-    // Add new profiles from Brave + Claude analysis
+    // Add new profiles from search + Claude analysis
     for (const profile of enrichment.profiles) {
       const key = profile.platform.toLowerCase().replace(/[^a-z]/g, "")
       // Only add if confidence is medium or high, and not already present with high confidence

@@ -38,8 +38,6 @@ export async function POST(request: Request) {
 
   const errors: string[] = []
   let enrichedData: any = null
-  let pdlPersonData: any = null
-  let pdlCompanyData: any = null
 
   // Decodificar URL por si ya tiene caracteres encoded (evitar double-encoding)
   let rawLinkedinUrl: string | null = null
@@ -135,113 +133,14 @@ export async function POST(request: Request) {
     errors.push(`Apollo: ${(err as Error).message}`)
   }
 
-  // =============================
-  // PASO 2: PDL Person Enrichment - llamada directa
-  // =============================
-  try {
-    const pdlApiKey = process.env.PDL_API_KEY
-    if (pdlApiKey && rawLinkedinUrl) {
-      const pdlParams = new URLSearchParams({
-        api_key: pdlApiKey,
-        profile: rawLinkedinUrl,
-        min_likelihood: "3",
-      })
-      let pdlResponse: Response | null = null
-      try {
-        pdlResponse = await fetch(
-          `https://api.peopledatalabs.com/v5/person/enrich?${pdlParams.toString()}`
-        )
-      } catch (fetchErr) {
-        errors.push(`PDL Person fetch: ${(fetchErr as Error).message}`)
-      }
-      if (pdlResponse?.ok) {
-        const pdlResult = await pdlResponse.json()
-        if (pdlResult.status === 200 && pdlResult.data) {
-          const d = pdlResult.data
-          pdlPersonData = {
-            found: true,
-            full_name: d.full_name,
-            job_title: d.job_title,
-            job_company_name: d.job_company_name,
-            job_company_website: d.job_company_website,
-            job_company_linkedin_url: d.job_company_linkedin_url,
-            job_company_industry: d.job_company_industry,
-            job_company_size: d.job_company_size,
-            job_company_employee_count: d.job_company_employee_count,
-            industry: d.industry,
-            skills: d.skills || [],
-            interests: d.interests || [],
-            location: d.location_name,
-            summary: d.summary,
-            twitter_url: d.twitter_url,
-            github_url: d.github_url,
-            facebook_url: d.facebook_url,
-          }
-        }
-      }
-    }
-  } catch (err) {
-    errors.push(`PDL Person: ${(err as Error).message}`)
-  }
-
-  // Merge datos
-  const mergedRole = enrichedData?.role || pdlPersonData?.job_title || champion.role
+  // Merge datos de Apollo con champion existente
+  const mergedRole = enrichedData?.role || champion.role
   const mergedHeadline = enrichedData?.headline || champion.headline
-  const mergedCompany = enrichedData?.company || pdlPersonData?.job_company_name || champion.company
-  const mergedCountry = enrichedData?.country || pdlPersonData?.location || champion.country
+  const mergedCompany = enrichedData?.company || champion.company
+  const mergedCountry = enrichedData?.country || champion.country
 
   // =============================
-  // PASO 3: PDL Company Enrichment - llamada directa
-  // =============================
-  if (mergedCompany) {
-    try {
-      const pdlApiKey = process.env.PDL_API_KEY
-      if (pdlApiKey) {
-        const params = new URLSearchParams({
-          api_key: pdlApiKey,
-          name: mergedCompany,
-        })
-        if (pdlPersonData?.job_company_website) params.append("website", pdlPersonData.job_company_website)
-        if (pdlPersonData?.job_company_linkedin_url) params.append("profile", pdlPersonData.job_company_linkedin_url)
-
-        let pdlCompanyResponse: Response | null = null
-        try {
-          pdlCompanyResponse = await fetch(
-            `https://api.peopledatalabs.com/v5/company/enrich?${params.toString()}`
-          )
-        } catch (fetchErr) {
-          errors.push(`PDL Company fetch: ${(fetchErr as Error).message}`)
-        }
-        if (pdlCompanyResponse?.ok) {
-          const pdlCompResult = await pdlCompanyResponse.json()
-          if (pdlCompResult.status === 200 && pdlCompResult.data) {
-            const d = pdlCompResult.data
-            pdlCompanyData = {
-              found: true,
-              name: d.name,
-              display_name: d.display_name,
-              industry: d.industry,
-              sub_industry: d.sub_industry,
-              size: d.size,
-              employee_count: d.employee_count,
-              founded: d.founded,
-              type: d.type,
-              description: d.summary,
-              website: d.website,
-              linkedin_url: d.linkedin_url,
-              tags: d.tags || [],
-              location: d.location?.name,
-            }
-          }
-        }
-      }
-    } catch (err) {
-      errors.push(`PDL Company: ${(err as Error).message}`)
-    }
-  }
-
-  // =============================
-  // PASO 4: Analyze Company con GPT - INLINE (no fetch interno)
+  // PASO 2: Analyze Company con GPT
   // =============================
   let companyId = champion.company_id
   if (mergedCompany && !champion.company_id) {
@@ -268,8 +167,6 @@ PRODUCTO: Creative Sense - Biblioteca de publicidades con IA para buscar, analiz
 EMPRESA: ${mergedCompany}
 ${mergedRole ? `Rol del contacto: ${mergedRole}` : ""}
 ${mergedHeadline ? `Headline: ${mergedHeadline}` : ""}
-${pdlCompanyData?.description ? `Descripción empresa: ${pdlCompanyData.description}` : ""}
-${pdlCompanyData?.industry ? `Industria PDL: ${pdlCompanyData.industry}` : ""}
 
 Clasificá esta empresa usando el nomenclador. Respondé en español.`,
         })
@@ -300,16 +197,17 @@ Clasificá esta empresa usando el nomenclador. Respondé en español.`,
   // Auto-detectar tipo (función definida arriba junto con PASO 1)
   const championType = enrichedData?.champion_type || detectType(mergedRole, mergedHeadline)
 
-  // Merge linkedin_data
+  // Merge linkedin_data (sin PDL)
   const mergedLinkedinData = {
     ...(champion.linkedin_data || {}),
     ...(enrichedData?.linkedin_data || {}),
-    pdl_person: pdlPersonData || undefined,
-    pdl_company: pdlCompanyData || undefined,
   }
+  // Limpiar datos PDL legacy si existían
+  delete mergedLinkedinData.pdl_person
+  delete mergedLinkedinData.pdl_company
 
   // =============================
-  // PASO 5: Generar perfil IA - INLINE (no fetch interno)
+  // PASO 3: Brief de prospección
   // =============================
   let aiProfileSummary: string | null = null
   try {
@@ -327,113 +225,87 @@ Clasificá esta empresa usando el nomenclador. Respondé en español.`,
         ).join(", ")}`
       : "No se conocen clientes"
 
-    const skillsList = pdlPersonData?.skills?.slice(0, 15)?.join(", ") || "No disponible"
-    const experiencesList = (enrichedData?.experiences || champion.experiences)?.slice(0, 3)?.map((e: any) =>
+    const experiencesList = (enrichedData?.experiences || champion.experiences)?.slice(0, 5)?.map((e: any) =>
       `- ${e.title || "Sin cargo"} en ${e.company || "Sin empresa"} (${e.starts_at || "?"} - ${e.ends_at || "Actual"})`
     ).join("\n") || "No disponible"
 
-    const companyInfo = pdlCompanyData?.found
-      ? `Industria: ${pdlCompanyData.industry || "?"} / Tamaño: ${pdlCompanyData.size || "?"} (${pdlCompanyData.employee_count?.toLocaleString() || "?"} empleados) / Tags: ${pdlCompanyData.tags?.slice(0, 8)?.join(", ") || "Sin tags"} / Descripción: ${pdlCompanyData.description || "Sin descripción"}`
-      : "No hay datos detallados de la empresa"
+    // Obtener datos de la empresa si existe
+    let companyInfo = "No hay datos de la empresa"
+    if (companyId) {
+      const { data: companyData } = await supabase
+        .from("companies")
+        .select("industry, sector, size, description, pain_points, sales_angle")
+        .eq("id", companyId)
+        .single()
+      if (companyData) {
+        companyInfo = `Industria: ${companyData.industry || "?"} / Sector: ${companyData.sector || "?"} / Tamaño: ${companyData.size || "?"} / Descripción: ${companyData.description || "Sin descripción"}`
+      }
+    }
+
+    // Obtener redes sociales
+    const socialProfiles = champion.social_profiles || {}
+    const socialInfo = Object.entries(socialProfiles)
+      .map(([platform, data]: [string, any]) => `${platform}: ${data.url || data.handle || "sí"}`)
+      .join(", ") || "No se encontraron redes sociales"
 
     const { text } = await generateText({
       model: "openai/gpt-4o-mini",
-      prompt: `Sos un asistente que sintetiza datos profesionales de una persona en un resumen ejecutivo factual. NO inventés datos, NO hagas recomendaciones de venta, NO saques conclusiones sobre qué venderle ni cómo abordarlo. Solo resumí lo que sabemos.
+      prompt: `Sos Gastón, un asistente de prospección comercial de Seenka (empresa de media intelligence de Argentina). Generá un brief de prospección accionable sobre esta persona.
 
-DATOS DISPONIBLES:
-- Nombre: ${enrichedData?.name || pdlPersonData?.full_name || champion.name}
+DATOS DE LA PERSONA:
+- Nombre: ${enrichedData?.name || champion.name}
 - Cargo actual: ${mergedRole || "Desconocido"}
 - Headline LinkedIn: ${mergedHeadline || "No disponible"}
 - Empresa actual: ${mergedCompany || "Desconocida"}
 - País: ${mergedCountry || "Desconocido"}
-- Clasificación: ${championType}
-- Bio/Resumen LinkedIn: ${enrichedData?.summary || pdlPersonData?.summary || "No disponible"}
-- Skills: ${skillsList}
+- Tipo de perfil: ${championType}
 - ${clientsInfo}
 
 EXPERIENCIA LABORAL:
 ${experiencesList}
 
-DATOS DE LA EMPRESA:
+EMPRESA:
 ${companyInfo}
 
+REDES SOCIALES:
+${socialInfo}
+
 INSTRUCCIONES:
-- Escribí un resumen factual de 3-5 oraciones en español argentino
-- Describí quién es: cargo, empresa, industria, trayectoria relevante
-- Mencioná datos concretos: skills, clientes que maneja, tamaño de empresa, industria
-- Si hay datos de experiencia previa relevantes, mencioná los cargos anteriores
-- Si maneja clientes/marcas, listalos
-- NO recomiendes cómo venderle, NO menciones Creative Sense, NO hagas suposiciones sobre qué le interesaría
-- Solo usá información que esté en los datos de arriba, no inventés nada
-- Texto corrido en un párrafo, sin bullets, sin títulos`,
+- Escribí un brief de prospección en español argentino, 4-6 oraciones
+- Estructura: (1) Quién es y qué hace, (2) Trayectoria relevante, (3) Presencia en redes, (4) Ángulo de entrada sugerido para Seenka
+- Sé concreto y accionable: mencioná datos específicos que ayuden a personalizar el primer contacto
+- Si maneja clientes/marcas, mencioná cuáles y cómo se conectan con lo que Seenka ofrece
+- Si tiene redes sociales activas, sugerí cómo usar esa info para romper el hielo
+- Solo usá información real de los datos de arriba, no inventés
+- Texto corrido, sin bullets, sin títulos, sin markdown`,
     })
 
     aiProfileSummary = text
   } catch (err) {
-    errors.push(`AI Profile: ${(err as Error).message}`)
+    errors.push(`Brief de prospección: ${(err as Error).message}`)
   }
 
   // =============================
   // GUARDAR TODO
   // =============================
   const updateData: Record<string, any> = {
-    enrichment_status: errors.length > 0 && !enrichedData && !pdlPersonData ? "error" : "complete",
+    enrichment_status: errors.length > 0 && !enrichedData ? "error" : "complete",
     enrichment_error: errors.length > 0 ? errors.join(" | ") : null,
     linkedin_data: mergedLinkedinData,
     champion_type: championType,
     company_id: companyId,
   }
 
-  // Mapear nombre
-  if (enrichedData?.name || pdlPersonData?.full_name) updateData.name = enrichedData?.name || pdlPersonData?.full_name
+  // Mapear campos de Apollo
+  if (enrichedData?.name) updateData.name = enrichedData.name
   if (mergedRole) updateData.role = mergedRole
   if (mergedCompany) updateData.company = mergedCompany
   if (mergedHeadline) updateData.headline = mergedHeadline
-  if (enrichedData?.summary || pdlPersonData?.summary) updateData.summary = enrichedData?.summary || pdlPersonData?.summary
   if (mergedCountry) updateData.country = mergedCountry
   if (aiProfileSummary) updateData.ai_profile_summary = aiProfileSummary
-
-  // Campos de Piloterr (preferidos)
   if (enrichedData?.photo_url) updateData.photo_url = enrichedData.photo_url
-  if (enrichedData?.website_url) updateData.website_url = enrichedData.website_url
-  if (enrichedData?.follower_count) updateData.follower_count = enrichedData.follower_count
-  if (enrichedData?.connection_count) updateData.connection_count = enrichedData.connection_count
-  if (enrichedData?.languages) updateData.languages = enrichedData.languages
-  if (enrichedData?.similar_profiles) updateData.similar_profiles = enrichedData.similar_profiles
-
-  // Experiencias: Piloterr primero, si no hay, armar desde PDL Person
-  if (enrichedData?.experiences) {
-    updateData.experiences = enrichedData.experiences
-  } else if (pdlPersonData?.found) {
-    // PDL tiene experience como array en el raw data - lo guardamos en linkedin_data
-    // Pero también podemos crear experiencias del job_title + job_company actual
-    const pdlExperiences = []
-    if (pdlPersonData.job_title && pdlPersonData.job_company_name) {
-      pdlExperiences.push({
-        title: pdlPersonData.job_title,
-        company: pdlPersonData.job_company_name,
-        is_current: true,
-        location: pdlPersonData.location,
-      })
-    }
-    if (pdlExperiences.length > 0) {
-      updateData.experiences = pdlExperiences
-    }
-  }
-
-  // Educación: Piloterr primero
-  if (enrichedData?.educations) {
-    updateData.educations = enrichedData.educations
-  }
-
-  // Industria: Piloterr primero, si no PDL Person o PDL Company
-  if (enrichedData?.industry) {
-    updateData.industry = enrichedData.industry
-  } else if (pdlPersonData?.industry) {
-    updateData.industry = pdlPersonData.industry
-  } else if (pdlCompanyData?.industry) {
-    updateData.industry = pdlCompanyData.industry
-  }
+  if (enrichedData?.experiences) updateData.experiences = enrichedData.experiences
+  if (enrichedData?.educations) updateData.educations = enrichedData.educations
 
   const { error: updateError } = await supabase
     .from("champions")

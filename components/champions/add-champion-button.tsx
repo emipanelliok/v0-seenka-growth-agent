@@ -184,7 +184,7 @@ export function AddChampionButton() {
       const enriched: EnrichedData = await response.json()
       setEnrichedData(enriched)
 
-      // Solo usar Piloterr para preview rápido. PDL + Company + GPT se hace en background al guardar.
+      // Preview rápido. Apollo + Company Analysis + Brief se hacen en background al guardar.
       const detectedType = (enriched as any).champion_type || "marketing"
 
       setFormData({

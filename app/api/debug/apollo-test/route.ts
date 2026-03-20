@@ -26,8 +26,6 @@ export async function GET(request: NextRequest) {
   // For the first match, extract the Apollo person data structure
   const champ = champions[0]
   const apolloPerson = champ.linkedin_data?.person || null
-  const pdlPerson = champ.linkedin_data?.pdl_person || null
-  const pdlCompany = champ.linkedin_data?.pdl_company || null
 
   return NextResponse.json({
     champion_basic: {
@@ -77,8 +75,6 @@ export async function GET(request: NextRequest) {
         logo_url: apolloPerson.organization.logo_url,
       } : null,
     } : "no apollo data",
-    pdl_person: pdlPerson || "no PDL person data",
-    pdl_company: pdlCompany || "no PDL company data",
     linkedin_data_top_keys: champ.linkedin_data ? Object.keys(champ.linkedin_data) : "no linkedin_data",
     // Show piloterr data if present (old source)
     piloterr_data: champ.linkedin_data?._source ? {

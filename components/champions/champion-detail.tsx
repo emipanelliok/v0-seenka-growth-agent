@@ -629,14 +629,14 @@ export function ChampionDetail({ champion, triggers, interactions }: ChampionDet
         isEnrichingSocial={isEnrichingSocial}
       />
 
-      {/* AI Profile Summary */}
+      {/* Brief de prospección */}
       {champion.ai_profile_summary && (
         <Card className="border-primary/20 bg-primary/5">
           <CardContent className="pt-4 pb-4">
             <div className="flex items-start gap-3">
               <Sparkles className="h-5 w-5 text-primary mt-0.5 shrink-0" />
               <div>
-                <p className="text-xs font-medium text-primary mb-1">Perfil generado por IA</p>
+                <p className="text-xs font-medium text-primary mb-1">Brief de prospección</p>
                 <p className="text-sm text-foreground leading-relaxed">{champion.ai_profile_summary}</p>
               </div>
             </div>
@@ -841,149 +841,6 @@ export function ChampionDetail({ champion, triggers, interactions }: ChampionDet
             </Card>
           )}
 
-          {/* Skills from PDL */}
-          {champion.linkedin_data?.pdl_person?.skills && champion.linkedin_data.pdl_person.skills.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Zap className="h-4 w-4" />
-                  Skills
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-1.5">
-                  {champion.linkedin_data.pdl_person.skills.slice(0, 15).map((skill: string, i: number) => (
-                    <Badge key={i} variant="secondary" className="text-xs">
-                      {skill}
-                    </Badge>
-                  ))}
-                  {champion.linkedin_data.pdl_person.skills.length > 15 && (
-                    <Badge variant="outline" className="text-xs text-muted-foreground">
-                      +{champion.linkedin_data.pdl_person.skills.length - 15} más
-                    </Badge>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* PDL Person Data - mostrar si hay datos de PDL sin PDL Company */}
-          {champion.linkedin_data?.pdl_person?.found && !champion.linkedin_data?.pdl_company?.found && (
-            <Card className="border-blue-200 dark:border-blue-800">
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <User className="h-4 w-4" />
-                  Datos Enriquecidos
-                  <Badge variant="outline" className="text-xs ml-auto">PDL</Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {champion.linkedin_data.pdl_person.job_title && (
-                    <div className="rounded-lg border p-3">
-                      <p className="text-xs text-muted-foreground mb-1">Cargo</p>
-                      <p className="text-sm font-medium">{champion.linkedin_data.pdl_person.job_title}</p>
-                    </div>
-                  )}
-                  {champion.linkedin_data.pdl_person.job_company_name && (
-                    <div className="rounded-lg border p-3">
-                      <p className="text-xs text-muted-foreground mb-1">Empresa</p>
-                      <p className="text-sm font-medium">{champion.linkedin_data.pdl_person.job_company_name}</p>
-                      {champion.linkedin_data.pdl_person.job_company_industry && (
-                        <p className="text-xs text-muted-foreground">{champion.linkedin_data.pdl_person.job_company_industry}</p>
-                      )}
-                    </div>
-                  )}
-                  {champion.linkedin_data.pdl_person.industry && (
-                    <div className="rounded-lg border p-3">
-                      <p className="text-xs text-muted-foreground mb-1">Industria</p>
-                      <p className="text-sm font-medium">{champion.linkedin_data.pdl_person.industry}</p>
-                    </div>
-                  )}
-                  {champion.linkedin_data.pdl_person.location && (
-                    <div className="rounded-lg border p-3">
-                      <p className="text-xs text-muted-foreground mb-1">Ubicación</p>
-                      <p className="text-sm font-medium">{champion.linkedin_data.pdl_person.location}</p>
-                    </div>
-                  )}
-                </div>
-                {champion.linkedin_data.pdl_person.interests && champion.linkedin_data.pdl_person.interests.length > 0 && (
-                  <div className="mt-3">
-                    <p className="text-xs text-muted-foreground mb-2">Intereses</p>
-                    <div className="flex flex-wrap gap-1">
-                      {champion.linkedin_data.pdl_person.interests.slice(0, 10).map((interest: string, i: number) => (
-                        <Badge key={i} variant="outline" className="text-xs">
-                          {interest}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Company Intelligence from PDL */}
-          {champion.linkedin_data?.pdl_company?.found && (
-            <Card className="border-primary/20">
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Building className="h-4 w-4" />
-                  Datos de la Empresa
-                  <Badge variant="outline" className="text-xs ml-auto">PDL</Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {champion.linkedin_data.pdl_company.industry && (
-                    <div className="rounded-lg border p-3">
-                      <p className="text-xs text-muted-foreground mb-1">Industria</p>
-                      <p className="text-sm font-medium">{champion.linkedin_data.pdl_company.industry}</p>
-                      {champion.linkedin_data.pdl_company.sub_industry && (
-                        <p className="text-xs text-muted-foreground">{champion.linkedin_data.pdl_company.sub_industry}</p>
-                      )}
-                    </div>
-                  )}
-                  {champion.linkedin_data.pdl_company.size && (
-                    <div className="rounded-lg border p-3">
-                      <p className="text-xs text-muted-foreground mb-1">Tamaño</p>
-                      <p className="text-sm font-medium">{champion.linkedin_data.pdl_company.size}</p>
-                      {champion.linkedin_data.pdl_company.employee_count && (
-                        <p className="text-xs text-muted-foreground">{champion.linkedin_data.pdl_company.employee_count.toLocaleString()} empleados</p>
-                      )}
-                    </div>
-                  )}
-                  {champion.linkedin_data.pdl_company.founded && (
-                    <div className="rounded-lg border p-3">
-                      <p className="text-xs text-muted-foreground mb-1">Fundada</p>
-                      <p className="text-sm font-medium">{champion.linkedin_data.pdl_company.founded}</p>
-                    </div>
-                  )}
-                  {champion.linkedin_data.pdl_company.type && (
-                    <div className="rounded-lg border p-3">
-                      <p className="text-xs text-muted-foreground mb-1">Tipo</p>
-                      <p className="text-sm font-medium">{champion.linkedin_data.pdl_company.type}</p>
-                    </div>
-                  )}
-                </div>
-                {champion.linkedin_data.pdl_company.tags && champion.linkedin_data.pdl_company.tags.length > 0 && (
-                  <div className="mt-3">
-                    <p className="text-xs text-muted-foreground mb-2">Tags</p>
-                    <div className="flex flex-wrap gap-1">
-                      {champion.linkedin_data.pdl_company.tags.slice(0, 10).map((tag: string, i: number) => (
-                        <Badge key={i} variant="outline" className="text-xs">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {champion.linkedin_data.pdl_company.description && (
-                  <p className="text-sm text-muted-foreground mt-3">{champion.linkedin_data.pdl_company.description}</p>
-                )}
-              </CardContent>
-            </Card>
-          )}
 
           {/* Experiences */}
           {champion.experiences && champion.experiences.length > 0 && (
