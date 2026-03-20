@@ -6,43 +6,41 @@ export async function POST(request: Request) {
   try {
     const body = await request.json()
     
-    console.log("[v0] ============ EFEMERIDE MESSAGE ENDPOINT ============")
-    console.log("[v0] Request body keys:", Object.keys(body))
-    console.log("[v0] seenka_data received:", body.seenka_data?.substring(0, 200))
-    console.log("[v0] manual_data received:", body.manual_data?.substring(0, 200))
-    console.log("[v0] efemeride.manual_data:", body.efemeride?.manual_data?.substring(0, 200))
-    
     const {
       efemeride,
       champion,
       clients,
-      stage,
-      manual_data,
       seenka_data,
     } = body
 
-    // PRIORIDAD: manual_data (documento cargado) > seenka_data
-    const dataToUse = manual_data || seenka_data || null
-    
-    console.log("[v0] dataToUse:", dataToUse?.substring(0, 300))
+    // Validar champion
+    if (!champion?.name) {
+      return NextResponse.json(
+        { error: "Falta el champion" },
+        { status: 400 }
+      )
+    }
+
+    // PRIORIDAD DE DATA:
+    // 1. seenka_data que viene en el request (ya tiene prioridad manual_data desde el componente)
+    // 2. Si no hay nada, mensaje genérico
+    const dataToUse = seenka_data || "No hay datos específicos. Preguntá con qué categorías trabajan."
 
     // Get prompt from DB
-    const basePrompt = await getPrompt("efemeride-message") || `Sos Gastón. Escribí un mensaje corto sobre la efeméride usando los datos disponibles.`
+    const basePrompt = await getPrompt("efemeride-message") || DEFAULT_PROMPT
 
     // Build client names
-    const clientNames = clients?.map((c: any) => c.name).join(", ") || "no especificado"
+    const clientNames = clients?.map((c: { name: string }) => c.name).join(", ") || ""
     
     // Replace all variables in the prompt
     const prompt = basePrompt
-      .replace(/{seenka_data}/g, dataToUse || "No hay datos del documento. Preguntá qué categorías manejan.")
-      .replace(/{champion_name}/g, champion?.name || "")
-      .replace(/{champion_title}/g, champion?.title || "")
-      .replace(/{champion_company}/g, champion?.company || "")
+      .replace(/{seenka_data}/g, dataToUse)
+      .replace(/{champion_name}/g, champion.name)
+      .replace(/{champion_role}/g, champion.role || "")
+      .replace(/{champion_company}/g, champion.company || "")
+      .replace(/{champion_industry}/g, champion.industry || "")
       .replace(/{client_names}/g, clientNames)
-      .replace(/{efemeride_name}/g, efemeride?.name || "")
-      .replace(/{stage}/g, stage || "cold")
-
-    console.log("[v0] Final prompt (first 500 chars):", prompt.substring(0, 500))
+      .replace(/{efemeride_name}/g, efemeride?.name || "evento")
 
     const { text } = await generateText({
       model: "openai/gpt-4o-mini",
@@ -58,9 +56,6 @@ REGLAS ESTRICTAS:
       maxTokens: 200,
     })
 
-    console.log("[v0] Generated message:", text.substring(0, 300))
-    console.log("[v0] ============ END ENDPOINT ============")
-
     return NextResponse.json({ message: text.trim() })
   } catch (error) {
     console.error("Error generating efemeride message:", error)
@@ -70,3 +65,21 @@ REGLAS ESTRICTAS:
     )
   }
 }
+
+const DEFAULT_PROMPT = `Sos Gastón, especialista en data e inversión publicitaria. Escribí un primer mensaje para {champion_name} de {champion_company}.
+
+DATA DISPONIBLE:
+{seenka_data}
+
+EFEMÉRIDE: {efemeride_name}
+CLIENTES/MARCAS: {client_names}
+
+INSTRUCCIONES:
+- Usá UN dato concreto del documento (no inventes)
+- Preguntá algo que invite a seguir la conversación
+- NO menciones Seenka, reuniones ni llamadas
+- Máximo 60 palabras
+- Tuteo natural, sin emojis
+- Firma: — Gastón
+
+Escribí SOLO el mensaje, nada más.`

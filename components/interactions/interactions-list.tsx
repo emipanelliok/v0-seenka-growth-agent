@@ -57,7 +57,7 @@ interface InteractionsListProps {
   interactions: InteractionWithDetails[]
 }
 
-export function InteractionsList({ interactions }: InteractionsListProps) {
+export function InteractionsList({ interactions: initialInteractions }: InteractionsListProps) {
   const [search, setSearch] = useState("")
   const [channelFilter, setChannelFilter] = useState<string>("all")
   const [outcomeFilter, setOutcomeFilter] = useState<string>("all")
@@ -65,6 +65,7 @@ export function InteractionsList({ interactions }: InteractionsListProps) {
   const [response, setResponse] = useState("")
   const [outcome, setOutcome] = useState<InteractionOutcome>("sent")
   const [isUpdating, setIsUpdating] = useState(false)
+  const [interactions, setInteractions] = useState<InteractionWithDetails[]>(initialInteractions)
   const router = useRouter()
 
   const filteredInteractions = interactions.filter((interaction) => {
@@ -137,6 +138,31 @@ export function InteractionsList({ interactions }: InteractionsListProps) {
     ignored: { label: "Sin respuesta", icon: XCircle, className: "text-muted-foreground" },
   }
 
+  // Agrupar interacciones por champion
+  const groupedByChampion = filteredInteractions.reduce((acc, interaction) => {
+    const championId = interaction.champion_id || "sin-champion"
+    if (!acc[championId]) {
+      acc[championId] = {
+        champion: interaction.champion,
+        interactions: []
+      }
+    }
+    acc[championId].interactions.push(interaction)
+    return acc
+  }, {} as Record<string, { champion: Champion | null, interactions: InteractionWithDetails[] }>)
+
+  // Ordenar cada grupo por fecha (más antiguo primero para mostrar como conversación)
+  Object.values(groupedByChampion).forEach(group => {
+    group.interactions.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+  })
+
+  // Ordenar los grupos por la fecha más reciente de interacción
+  const sortedGroups = Object.entries(groupedByChampion).sort((a, b) => {
+    const lastA = a[1].interactions[a[1].interactions.length - 1]
+    const lastB = b[1].interactions[b[1].interactions.length - 1]
+    return new Date(lastB.created_at).getTime() - new Date(lastA.created_at).getTime()
+  })
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-4 sm:flex-row">
@@ -175,46 +201,47 @@ export function InteractionsList({ interactions }: InteractionsListProps) {
         </Select>
       </div>
 
-      <div className="space-y-4">
-        {filteredInteractions.map((interaction) => {
-          const outcomeInfo = outcomeConfig[interaction.outcome]
-          const OutcomeIcon = outcomeInfo.icon
+      <div className="space-y-6">
+        {sortedGroups.map(([championId, group]) => {
+          const lastInteraction = group.interactions[group.interactions.length - 1]
+          const lastOutcomeInfo = outcomeConfig[lastInteraction.outcome]
+          const LastOutcomeIcon = lastOutcomeInfo.icon
 
           return (
-            <Card key={interaction.id}>
+            <Card key={championId}>
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2 mb-1">
                       <Badge variant="outline">
-                        {CHANNEL_LABELS[interaction.channel]}
+                        {group.interactions.length} mensaje{group.interactions.length > 1 ? "s" : ""}
                       </Badge>
                       <Badge
                         variant="outline"
-                        className={outcomeInfo.className}
+                        className={lastOutcomeInfo.className}
                       >
-                        <OutcomeIcon className="mr-1 h-3 w-3" />
-                        {outcomeInfo.label}
+                        <LastOutcomeIcon className="mr-1 h-3 w-3" />
+                        {lastOutcomeInfo.label}
                       </Badge>
                     </div>
-                    {interaction.champion && (
+                    {group.champion && (
                       <CardTitle className="text-base">
                         <Link
-                          href={`/champions/${interaction.champion.id}`}
+                          href={`/champions/${group.champion.id}`}
                           className="hover:underline"
                         >
-                          {interaction.champion.name}
+                          {group.champion.name}
                         </Link>
-                        {interaction.champion.company && (
+                        {group.champion.company && (
                           <span className="font-normal text-muted-foreground">
                             {" "}
-                            - {interaction.champion.company}
+                            - {group.champion.company}
                           </span>
                         )}
                       </CardTitle>
                     )}
                     <CardDescription>
-                      {new Date(interaction.created_at).toLocaleDateString("es-ES", {
+                      Última interacción: {new Date(lastInteraction.created_at).toLocaleDateString("es-ES", {
                         day: "numeric",
                         month: "long",
                         year: "numeric",
@@ -224,17 +251,9 @@ export function InteractionsList({ interactions }: InteractionsListProps) {
                     </CardDescription>
                   </div>
                   <div className="flex gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => openEditDialog(interaction)}
-                    >
-                      <Edit className="mr-1 h-3 w-3" />
-                      Actualizar
-                    </Button>
-                    {interaction.champion && (
+                    {group.champion && (
                       <Button variant="ghost" size="sm" asChild>
-                        <Link href={`/champions/${interaction.champion.id}`}>
+                        <Link href={`/champions/${group.champion.id}`}>
                           <ExternalLink className="mr-1 h-3 w-3" />
                           Ver champion
                         </Link>
@@ -243,49 +262,78 @@ export function InteractionsList({ interactions }: InteractionsListProps) {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-3">
-                {interaction.insight && (
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Insight:</p>
-                    <p className="text-sm">{interaction.insight}</p>
-                  </div>
-                )}
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-1">Mensaje enviado:</p>
-                  <p className="text-sm text-muted-foreground">{interaction.message}</p>
-                </div>
-                {interaction.response && (
-                  <div className="rounded-lg bg-chart-2/10 p-3">
-                    <p className="text-xs font-medium text-chart-2 mb-1">Respuesta recibida:</p>
-                    <p className="text-sm">{interaction.response}</p>
-                  </div>
-                )}
-                {(interaction as any).reply_content && (
-                  <div className="rounded-lg bg-chart-2/10 p-3">
-                    <div className="flex items-start gap-2">
-                      <div className="flex-1">
-                        <p className="text-xs font-medium text-chart-2 mb-1">Respuesta del champion:</p>
-                        <p className="text-sm">{(interaction as any).reply_content}</p>
+              <CardContent className="space-y-4">
+                {/* Conversación como thread */}
+                <div className="space-y-3 border-l-2 border-muted pl-4">
+                  {group.interactions.map((interaction, idx) => {
+                    const outcomeInfo = outcomeConfig[interaction.outcome]
+                    const isLast = idx === group.interactions.length - 1
+                    
+                    return (
+                      <div key={interaction.id} className="relative">
+                        {/* Dot indicator */}
+                        <div className={`absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full border-2 border-background ${
+                          interaction.outcome === "responded" ? "bg-chart-2" : "bg-primary"
+                        }`} />
+                        
+                        {/* Mensaje enviado */}
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span className="font-medium">Enviado</span>
+                            <span>
+                              {new Date(interaction.created_at).toLocaleDateString("es-ES", {
+                                day: "numeric",
+                                month: "short",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                            <Badge variant="outline" className="text-xs h-5">
+                              {CHANNEL_LABELS[interaction.channel]}
+                            </Badge>
+                          </div>
+                          <div className="rounded-lg bg-primary/5 p-3">
+                            <p className="text-sm whitespace-pre-wrap">{interaction.message}</p>
+                          </div>
+                        </div>
+                        
+                        {/* Respuesta del champion */}
+                        {(interaction.response || (interaction as any).reply_content) && (
+                          <div className="mt-2 space-y-2">
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <span className="font-medium text-chart-2">Respuesta</span>
+                              {(interaction as any).reply_sentiment && (
+                                <Badge variant="secondary" className="text-xs h-5">
+                                  {(interaction as any).reply_sentiment === "positive"
+                                    ? "Positivo"
+                                    : (interaction as any).reply_sentiment === "negative"
+                                    ? "Negativo"
+                                    : "Neutral"}
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="rounded-lg bg-chart-2/10 p-3">
+                              <p className="text-sm whitespace-pre-wrap">
+                                {(interaction as any).reply_content || interaction.response}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* AI Suggestion solo en la última interacción con respuesta */}
+                        {isLast && (interaction as any).reply_content && (
+                          <div className="mt-3">
+                            <AISuggestionBox 
+                              interaction={interaction} 
+                              championId={interaction.champion_id}
+                              championName={interaction.champion?.name || "Champion"}
+                            />
+                          </div>
+                        )}
                       </div>
-                      {(interaction as any).reply_sentiment && (
-                        <Badge variant="secondary" className="mt-0.5">
-                          {(interaction as any).reply_sentiment === "positive"
-                            ? "Positivo"
-                            : (interaction as any).reply_sentiment === "negative"
-                            ? "Negativo"
-                            : "Neutral"}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                )}
-                {(interaction as any).reply_content && (
-                  <AISuggestionBox 
-                    interaction={interaction} 
-                    championId={interaction.champion_id}
-                    championName={interaction.champion?.name || "Champion"}
-                  />
-                )}
+                    )
+                  })}
+                </div>
               </CardContent>
             </Card>
           )
@@ -409,17 +457,21 @@ function AISuggestionBox({
     }
   }
 
+  const [approved, setApproved] = useState(false)
+  const [approvalError, setApprovalError] = useState<string | null>(null)
+
   const approveSuggestion = async () => {
     // Permitir si hay mensaje editado O si es una acción especial (stand_by, etc)
     if (!editedMessage && !(suggestion?.accion || suggestion?.action)) return
     
     setSending(true)
+    setApprovalError(null)
     try {
       const action = suggestion?.accion || suggestion?.action || "continuar"
       
       // Si es stand_by, no enviar mensaje, solo registrar la acción
       if (action === "stand_by") {
-        await supabase.from("champion_sequences").update({
+        const { error } = await supabase.from("champion_sequences").update({
           metadata: {
             status: "stand_by",
             temperature: suggestion.temperatura,
@@ -429,30 +481,61 @@ function AISuggestionBox({
           },
           status: "paused"
         }).eq("champion_id", championId).eq("status", "active")
+        
+        if (error) throw error
+        setApproved(true)
       } else {
-        // Enviar mensaje normalmente
-        await supabase.from("outreach_queue").insert({
+        // Obtener user_id actual
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) throw new Error("No autenticado")
+        
+        // Guardar mensaje en la cola de salida
+        const { error: queueError } = await supabase.from("outreach_queue").insert({
+          user_id: user.id,
           champion_id: championId,
           channel: "email",
           message: editedMessage || suggestion.generatedResponse,
           subject_line: suggestion.suggestedSubject || "Re: Seguimiento",
-          status: "approved",
-          priority: 1,
-          metadata: {
-            auto_generated: true,
-            intent_detected: suggestion.intent,
-            action_type: action,
-            temperature: suggestion.temperatura,
-            reasoning: suggestion.razonamiento
-          }
+          status: "approved"
         })
+        
+        if (queueError) throw queueError
+        
+        // Registrar la interacción
+        const { data: newInteraction, error: interactionError } = await supabase.from("interactions").insert({
+          user_id: user.id,
+          champion_id: championId,
+          channel: "email",
+          message: editedMessage || suggestion.generatedResponse,
+          outcome: "sent",
+          insight: `Respuesta generada por IA (${action})`,
+        }).select().single()
+        
+        if (interactionError) throw interactionError
+        
+        // Agregar la nueva interacción a la lista localmente
+        if (newInteraction) {
+          const champion = interactions.find(i => i.champion_id === championId)?.champion
+          setInteractions(prev => [{
+            ...newInteraction,
+            champion: champion || null,
+            trigger: null
+          }, ...prev])
+        }
+        
+        setApproved(true)
       }
       
-      setSuggestion(null)
-      setGenerated(false)
-      router.refresh()
+      // Mostrar confirmación por 2 segundos antes de limpiar
+      setTimeout(() => {
+        setSuggestion(null)
+        setGenerated(false)
+        setApproved(false)
+        router.refresh()
+      }, 2000)
     } catch (err) {
       console.error("Error approving suggestion:", err)
+      setApprovalError("Error al guardar. Intentá de nuevo.")
     } finally {
       setSending(false)
     }
@@ -492,8 +575,24 @@ function AISuggestionBox({
     )
   }
 
+  if (approved) {
+    return (
+      <div className="rounded-lg bg-green-500/10 border border-green-500/30 p-3 mt-2">
+        <div className="flex items-center gap-2 text-green-600">
+          <CheckCircle className="h-4 w-4" />
+          <span className="text-sm font-medium">Mensaje guardado en bandeja de salida</span>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="rounded-lg bg-primary/5 border border-primary/20 p-3 mt-2 space-y-3">
+      {approvalError && (
+        <div className="text-sm text-red-500 bg-red-50 p-2 rounded">
+          {approvalError}
+        </div>
+      )}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-primary" />
