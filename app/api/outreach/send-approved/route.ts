@@ -18,12 +18,9 @@ export async function POST() {
     const settingsMap: Record<string, string> = {}
     settings?.forEach((s) => { if (s.value) settingsMap[s.key] = s.value })
 
-    const phantombusterApiKey = settingsMap["phantombuster_api_key"]
-    const phantombusterPhantomId = settingsMap["phantombuster_phantom_id"]
-    const linkedinSessionCookie = settingsMap["linkedin_session_cookie"]
     const webhookUrl = settingsMap["make_webhook_url"]
-    const hasPhantombuster = !!(phantombusterApiKey && phantombusterPhantomId && linkedinSessionCookie)
     const hasResend = !!process.env.RESEND_API_KEY
+    const hasUnipile = !!(process.env.UNIPILE_API_TOKEN && process.env.UNIPILE_DSN)
     const resendFromDomain = process.env.RESEND_FROM_DOMAIN
 
     // Get all approved items
@@ -66,7 +63,7 @@ export async function POST() {
         if (item.channel === "email") {
           await sendEmail(champ, item, settingsMap, hasResend, resendFromDomain)
         } else if (item.channel === "linkedin") {
-          await sendLinkedIn(champ, item, hasPhantombuster, phantombusterApiKey, phantombusterPhantomId, linkedinSessionCookie, webhookUrl)
+          await sendLinkedIn(champ, item, hasUnipile, webhookUrl)
         }
 
         // Mark as sent
@@ -175,39 +172,59 @@ async function sendEmail(
 async function sendLinkedIn(
   champ: { linkedin_url: string | null; name: string },
   item: { message: string },
-  hasPhantombuster: boolean,
-  apiKey: string,
-  phantomId: string,
-  sessionCookie: string,
+  hasUnipile: boolean,
   webhookUrl?: string
 ) {
   if (!champ.linkedin_url) throw new Error("Champion sin LinkedIn URL")
 
-  if (hasPhantombuster) {
-    const res = await fetch("https://api.phantombuster.com/api/v2/agents/launch", {
-      method: "POST",
+  if (hasUnipile) {
+    const unipileDsn = process.env.UNIPILE_DSN!
+    const unipileToken = process.env.UNIPILE_API_TOKEN!
+    const accountId = process.env.UNIPILE_LINKEDIN_ACCOUNT_ID!
+
+    // Extract LinkedIn slug from URL (e.g., "gisela-montiveros" from "linkedin.com/in/gisela-montiveros/")
+    const slugMatch = champ.linkedin_url.match(/linkedin\.com\/in\/([^/?]+)/)
+    if (!slugMatch) throw new Error(`No se pudo extraer slug de LinkedIn URL: ${champ.linkedin_url}`)
+    const slug = slugMatch[1]
+
+    // Step 1: Get provider_id from LinkedIn slug
+    const userRes = await fetch(`https://${unipileDsn}/api/v1/users/${slug}?account_id=${accountId}`, {
       headers: {
-        "X-Phantombuster-Key": apiKey,
-        "Content-Type": "application/json",
+        "X-API-KEY": unipileToken,
+        "accept": "application/json",
       },
-      body: JSON.stringify({
-        id: phantomId,
-        argument: JSON.stringify({
-          sessionCookie,
-          spreadsheetUrl: champ.linkedin_url,
-          message: item.message,
-          noDatabase: true,
-        }),
-      }),
     })
 
-    if (res.status === 429) {
-      throw new Error("Phantombuster ocupado. Reintentar en 1-2 minutos.")
+    if (!userRes.ok) {
+      const err = await userRes.text().catch(() => "")
+      throw new Error(`Unipile user lookup failed (${userRes.status}): ${err}`)
     }
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      throw new Error(`Phantombuster: ${data.error || data.message || res.status}`)
+
+    const userData = await userRes.json()
+    const providerId = userData.provider_id || userData.id
+    if (!providerId) throw new Error("No se encontró provider_id para el perfil de LinkedIn")
+
+    // Step 2: Send message via Unipile (create chat / send message)
+    const formData = new FormData()
+    formData.append("account_id", accountId)
+    formData.append("attendees_ids", providerId)
+    formData.append("text", item.message)
+
+    const sendRes = await fetch(`https://${unipileDsn}/api/v1/chats`, {
+      method: "POST",
+      headers: {
+        "X-API-KEY": unipileToken,
+        "accept": "application/json",
+      },
+      body: formData,
+    })
+
+    if (!sendRes.ok) {
+      const err = await sendRes.text().catch(() => "")
+      throw new Error(`Unipile send failed (${sendRes.status}): ${err}`)
     }
+
+    console.log(`[linkedin-send] Message sent to ${champ.name} via Unipile`)
     return
   }
 
@@ -225,5 +242,5 @@ async function sendLinkedIn(
     return
   }
 
-  throw new Error("No hay Phantombuster ni webhook configurado para LinkedIn")
+  throw new Error("No hay Unipile ni webhook configurado para LinkedIn. Configurá UNIPILE_API_TOKEN y UNIPILE_DSN.")
 }
