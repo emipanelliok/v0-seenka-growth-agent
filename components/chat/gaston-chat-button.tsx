@@ -1,11 +1,15 @@
 "use client"
 
-import { useState, lazy, Suspense } from "react"
+import { useState } from "react"
+import dynamic from "next/dynamic"
 import { Button } from "@/components/ui/button"
 import { Sparkles } from "lucide-react"
 
-const GastonChatPanel = lazy(() =>
-  import("./gaston-chat-panel").then((m) => ({ default: m.GastonChatPanel }))
+// Dynamic import with ssr: false ensures useChat (from @ai-sdk/react)
+// never runs during server-side rendering
+const GastonChatPanel = dynamic(
+  () => import("./gaston-chat-panel").then((mod) => ({ default: mod.GastonChatPanel })),
+  { ssr: false, loading: () => null }
 )
 
 export function GastonChatButton() {
@@ -27,11 +31,7 @@ export function GastonChatButton() {
         <Sparkles className="h-6 w-6" />
         <span className="sr-only">Chat con Gastón</span>
       </Button>
-      {hasOpened && (
-        <Suspense fallback={null}>
-          <GastonChatPanel open={open} onOpenChange={setOpen} />
-        </Suspense>
-      )}
+      {hasOpened && <GastonChatPanel open={open} onOpenChange={setOpen} />}
     </>
   )
 }
