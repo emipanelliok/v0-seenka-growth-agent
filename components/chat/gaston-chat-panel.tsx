@@ -1,7 +1,7 @@
 "use client"
 
 import { useChat } from "@ai-sdk/react"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, type FormEvent } from "react"
 import {
   Sheet,
   SheetContent,
@@ -9,7 +9,6 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { ChatMessage } from "./chat-message"
 import { Send, Loader2, Sparkles, RotateCcw } from "lucide-react"
 
@@ -20,10 +19,11 @@ interface GastonChatPanelProps {
 
 export function GastonChatPanel({ open, onOpenChange }: GastonChatPanelProps) {
   const [conversationId, setConversationId] = useState<string | null>(null)
+  const [localInput, setLocalInput] = useState("")
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const { messages, input, handleInputChange, handleSubmit, isLoading, setMessages, append } = useChat({
+  const { messages, isLoading, setMessages, append } = useChat({
     api: "/api/chat",
     body: { conversationId },
     onResponse: (response) => {
@@ -51,6 +51,26 @@ export function GastonChatPanel({ open, onOpenChange }: GastonChatPanelProps) {
   const handleNewConversation = () => {
     setConversationId(null)
     setMessages([])
+    setLocalInput("")
+  }
+
+  const sendMessage = (text: string) => {
+    const trimmed = text.trim()
+    if (!trimmed || isLoading) return
+    setLocalInput("")
+    append({ role: "user", content: trimmed })
+  }
+
+  const handleFormSubmit = (e: FormEvent) => {
+    e.preventDefault()
+    sendMessage(localInput)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault()
+      sendMessage(localInput)
+    }
   }
 
   return (
@@ -86,7 +106,7 @@ export function GastonChatPanel({ open, onOpenChange }: GastonChatPanelProps) {
         {/* Messages */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto">
           {messages.length === 0 ? (
-            <EmptyState onSuggestionClick={(text) => append({ role: "user", content: text })} />
+            <EmptyState onSuggestionClick={sendMessage} />
           ) : (
             <div className="py-4">
               {messages.map((msg) => (
@@ -115,19 +135,21 @@ export function GastonChatPanel({ open, onOpenChange }: GastonChatPanelProps) {
 
         {/* Input */}
         <div className="border-t p-4">
-          <form onSubmit={handleSubmit} className="flex gap-2">
-            <Input
+          <form onSubmit={handleFormSubmit} className="flex gap-2">
+            <input
               ref={inputRef}
-              value={input}
-              onChange={handleInputChange}
+              type="text"
+              value={localInput}
+              onChange={(e) => setLocalInput(e.target.value)}
+              onKeyDown={handleKeyDown}
               placeholder="Preguntale a Gastón..."
-              className="flex-1"
               disabled={isLoading}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 flex-1"
             />
             <Button
               type="submit"
               size="icon"
-              disabled={isLoading || !(input || "").trim()}
+              disabled={isLoading || !localInput.trim()}
               className="shrink-0"
             >
               {isLoading ? (
