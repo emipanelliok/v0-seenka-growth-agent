@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
-  Mail, Linkedin, Loader2, Pencil, X, MessageSquare, Sparkles, RefreshCw,
+  Mail, Linkedin, Loader2, Pencil, X, MessageSquare, Sparkles, RefreshCw, Send,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -186,6 +186,38 @@ export function ConversationsView({ interactions, queueItems, champions, loadedA
   useEffect(() => {
     if (!selectedId && sorted.length > 0) setSelectedId(sorted[0].champion.id)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Direct send
+  const [directMsg, setDirectMsg] = useState("")
+  const [directChannel, setDirectChannel] = useState<"email" | "linkedin">("email")
+  const [sendingDirect, setSendingDirect] = useState(false)
+
+  const handleDirectSend = async () => {
+    if (!directMsg.trim() || !selected) return
+    setSendingDirect(true)
+    try {
+      const res = await fetch("/api/outreach/send-direct", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          champion_id: selected.champion.id,
+          message: directMsg.trim(),
+          channel: directChannel,
+        }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setDirectMsg("")
+        window.location.reload()
+      } else {
+        alert(data.error || "Error al enviar")
+      }
+    } catch (err) {
+      console.error("Direct send error:", err)
+    } finally {
+      setSendingDirect(false)
+    }
+  }
 
   // Auto-refresh every 30 seconds
   const [lastRefresh, setLastRefresh] = useState(loadedAt || new Date().toISOString())
@@ -409,6 +441,50 @@ export function ConversationsView({ interactions, queueItems, champions, loadedA
                 ))}
             </div>
           )}
+
+          {/* Direct send input */}
+          <div className="flex-shrink-0 border-t bg-background px-4 py-3">
+            <div className="flex items-end gap-2 max-w-2xl mx-auto">
+              <div className="flex-1">
+                <Textarea
+                  value={directMsg}
+                  onChange={(e) => setDirectMsg(e.target.value)}
+                  placeholder={`Escribir mensaje para ${selected.champion.name}...`}
+                  className="min-h-[44px] max-h-32 resize-none text-sm"
+                  rows={1}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault()
+                      handleDirectSend()
+                    }
+                  }}
+                />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setDirectChannel(directChannel === "email" ? "linkedin" : "email")}
+                  className={cn(
+                    "flex items-center justify-center h-9 w-9 rounded-md border transition-colors",
+                    directChannel === "email"
+                      ? "bg-blue-50 border-blue-200 text-blue-600"
+                      : "bg-sky-50 border-sky-200 text-sky-600"
+                  )}
+                  title={directChannel === "email" ? "Enviar por Email — click para cambiar" : "Enviar por LinkedIn — click para cambiar"}
+                >
+                  {directChannel === "email" ? <Mail className="h-4 w-4" /> : <Linkedin className="h-4 w-4" />}
+                </button>
+                <Button
+                  size="sm"
+                  onClick={handleDirectSend}
+                  disabled={!directMsg.trim() || sendingDirect}
+                  className="h-9 px-3"
+                >
+                  {sendingDirect ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
       ) : (
         <div className="flex-1 flex items-center justify-center">
