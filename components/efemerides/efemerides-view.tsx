@@ -109,6 +109,8 @@ export function EfemeridesView({ efemerides: initialEfemerides }: EfemeridesView
   const [showCriteriaPanel, setShowCriteriaPanel] = useState(false)
   const [autoGeneratingId, setAutoGeneratingId] = useState<string | null>(null)
   const [autoGenerateResult, setAutoGenerateResult] = useState<Record<string, { message: string; success: boolean }>>({})
+  const [triggeringId, setTriggeringId] = useState<string | null>(null)
+  const [triggerResult, setTriggerResult] = useState<Record<string, { message: string; success: boolean }>>({})
   const [activeCriteria, setActiveCriteria] = useState<MatchCriteria[]>(["industry", "champion_type"])
   const [championMatches, setChampionMatches] = useState<
     Record<string, Array<{ champion_id: string; champion_name: string; client_name: string; matched_industria: string | null; match_type: "directo" | "parcial" | "pais" | "agencia" | "keyword" | "historial"; match_reason: string }>>
@@ -368,6 +370,25 @@ export function EfemeridesView({ efemerides: initialEfemerides }: EfemeridesView
       }))
     } finally {
       setAutoGeneratingId(null)
+    }
+  }
+
+  const handleTriggerGaston = async (efemerideId: string) => {
+    setTriggeringId(efemerideId)
+    setTriggerResult((prev) => { const next = { ...prev }; delete next[efemerideId]; return next })
+    try {
+      const res = await fetch(`/api/efemerides/${efemerideId}/trigger-agent`, { method: "POST" })
+      const data = await res.json()
+      if (res.ok) {
+        setTriggerResult((prev) => ({ ...prev, [efemerideId]: { message: `${data.matched_count ?? 0} mensajes generados`, success: true } }))
+        router.push("/interactions")
+      } else {
+        setTriggerResult((prev) => ({ ...prev, [efemerideId]: { message: data.error || "Error", success: false } }))
+      }
+    } catch {
+      setTriggerResult((prev) => ({ ...prev, [efemerideId]: { message: "Error de conexión", success: false } }))
+    } finally {
+      setTriggeringId(null)
     }
   }
 
@@ -699,30 +720,26 @@ export function EfemeridesView({ efemerides: initialEfemerides }: EfemeridesView
 
                   {/* Outreach buttons */}
                   {daysUntil >= -7 && efemeride.is_active && (
-                    <div className="flex gap-2">
+                    <div className="flex flex-col gap-2">
                       <Button
                         variant="default"
                         size="sm"
-                        className="flex-1 gap-2"
-                        disabled={autoGeneratingId === efemeride.id}
-                        onClick={() => handleAutoGenerate(efemeride.id)}
+                        className="w-full gap-2"
+                        disabled={triggeringId === efemeride.id}
+                        onClick={() => handleTriggerGaston(efemeride.id)}
                       >
-                        {autoGeneratingId === efemeride.id ? (
+                        {triggeringId === efemeride.id ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         ) : (
-                          <Inbox className="h-3.5 w-3.5" />
+                          <Sparkles className="h-3.5 w-3.5" />
                         )}
-                        {autoGeneratingId === efemeride.id ? "Generando..." : "Auto-generar"}
+                        {triggeringId === efemeride.id ? "Gastón trabajando..." : "Triggear Gastón"}
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 gap-2"
-                        onClick={() => router.push(`/efemerides/${efemeride.id}/outreach`)}
-                      >
-                        <Send className="h-3.5 w-3.5" />
-                        Outreach manual
-                      </Button>
+                      {triggerResult[efemeride.id] && (
+                        <p className={`text-xs ${triggerResult[efemeride.id].success ? "text-green-600" : "text-destructive"}`}>
+                          {triggerResult[efemeride.id].message}
+                        </p>
+                      )}
                     </div>
                   )}
 

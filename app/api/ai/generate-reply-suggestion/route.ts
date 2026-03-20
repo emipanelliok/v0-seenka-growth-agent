@@ -76,8 +76,21 @@ export async function POST(request: NextRequest) {
     // Parse JSON response
     const cleanedText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
     console.log("[v0] Cleaned text:", cleanedText.substring(0, 200))
-    
-    const analysis = JSON.parse(cleanedText)
+
+    let analysis: Record<string, any> = {}
+    try {
+      analysis = JSON.parse(cleanedText)
+    } catch {
+      // Try extracting JSON object from surrounding text
+      const jsonMatch = cleanedText.match(/\{[\s\S]*\}/)
+      if (jsonMatch) {
+        try {
+          analysis = JSON.parse(jsonMatch[0])
+        } catch {
+          console.error("[v0] Could not parse JSON from AI response, using fallback")
+        }
+      }
+    }
     console.log("[v0] Parsed analysis:", analysis)
 
     return NextResponse.json({

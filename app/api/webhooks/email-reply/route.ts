@@ -169,19 +169,10 @@ async function processReply(supabase: any, matchedChampion: any, replyContent: s
         .from("outreach_queue")
         .insert({
           champion_id: matchedChampion.id,
-          trigger_id: null,
           channel: "email",
           message: analysis.generatedResponse,
           subject_line: analysis.suggestedSubject || `Re: ${subject || "Seguimiento"}`,
-          status: "pending_review", // Goes to bandeja for approval
-          priority: analysis.action === "schedule_call" ? 1 : 2,
-          metadata: {
-            auto_generated: true,
-            reply_to: subject,
-            intent_detected: analysis.intent,
-            action_type: analysis.action,
-            reasoning: analysis.reasoning
-          }
+          status: "pending_review"
         })
       
       if (queueError) {
@@ -290,43 +281,60 @@ async function analyzeAndGenerateResponse(
 
   const championClients = champion?.champion_clients?.map((c: any) => c.client_name).join(", ") || "no especificados"
 
+  // Strip email signature and quoted thread before sending to LLM
+  function stripEmailNoise(text: string): string {
+    const lines = text.split("\n")
+    const out: string[] = []
+    for (let i = 0; i < lines.length; i++) {
+      const t = lines[i].trim()
+      if (/^On .+ wrote:/i.test(t)) break
+      if (/^El .+(escribi[oó]:|wrote:)/i.test(t)) break
+      if (/^--\s*$/.test(t)) break
+      if (/^-{3,}/.test(t) || /^_{3,}/.test(t)) break
+      if (t.startsWith(">")) continue
+      if (i > 0 && /^\+\d[\d\s]{6,}$/.test(t)) break
+      if (/^(Agendemos|Agendamos)\s/i.test(t)) break
+      out.push(lines[i])
+    }
+    while (out.length && out[out.length - 1].trim() === "") out.pop()
+    return out.join("\n").trim()
+  }
+
+  const cleanReply = stripEmailNoise(replyContent)
+
   try {
     const { text } = await generateText({
       model: gateway("anthropic/claude-sonnet-4-20250514"),
-      prompt: `Eres un agente de ventas experto de Seenka, una plataforma de inteligencia publicitaria que monitorea inversión en medios, competencia, y creatividades.
+      prompt: `Sos Gastón, agente de inteligencia publicitaria de Seenka. Seenka es una plataforma que monitorea en tiempo real qué están comunicando las marcas en TV, digital y radio en toda Latinoamérica — creatividades, mensajes, presencia en medios.
 
-CONTEXTO DEL CHAMPION:
-- Nombre: ${champion?.name || "Desconocido"}
-- Empresa: ${champion?.company || "No especificada"}
-- Cargo: ${champion?.title || "No especificado"}
+CONTEXTO:
+- Estás hablando con ${champion?.name || "esta persona"} (${champion?.title || "ejecutivo"} en ${champion?.company || "su empresa"})
 - Clientes que maneja: ${championClients}
 
-ÚLTIMO MENSAJE QUE LE ENVIAMOS:
-${lastMessageSent?.substring(0, 500) || "No disponible"}
+MENSAJE QUE VOS LE MANDASTE:
+${lastMessageSent?.substring(0, 400) || "No disponible"}
 
 SU RESPUESTA:
-Subject: ${subject || "(sin asunto)"}
-Contenido: ${replyContent}
+${cleanReply}
 
-ANALIZA LA RESPUESTA Y RESPONDE EN JSON:
+ANALIZÁ LA RESPUESTA Y RESPONDÉ EN JSON:
 {
-  "intent": "string - qué quiere/necesita la persona (ej: mas_info, quien_es_seenka, agendar_llamada, no_interesado, no_es_momento, ya_tiene_solucion, pregunta_precio, reenviar_a_otro, out_of_office)",
+  "intent": "string - qué quiere/necesita (ej: quien_es_seenka, mas_info, agendar_llamada, no_interesado, no_es_momento, ya_tiene_solucion, pregunta_precio, reenviar_a_otro, out_of_office)",
   "sentiment": "positive | negative | neutral",
-  "action": "string - qué acción tomar (ej: send_more_info, explain_seenka, schedule_call, send_pricing, close_lost, reactivate_later, forward_contact, wait)",
-  "reasoning": "string breve explicando por qué elegiste esa acción",
-  "generatedResponse": "string - el email de respuesta personalizado que deberíamos enviar (null si action es close_lost o wait). Máximo 150 palabras. Tono profesional pero cercano. Incluye datos relevantes si aplica. NO uses emojis.",
-  "suggestedSubject": "string - asunto sugerido para el email de respuesta (null si no hay response)"
+  "action": "string - qué hacer (ej: explain_seenka, send_more_info, schedule_call, close_lost, reactivate_later, wait)",
+  "reasoning": "string breve",
+  "generatedResponse": "string - tu respuesta como Gastón (null si action es close_lost). Máx 80 palabras. Español argentino con voseo. Sin emojis. Firmá como 'Gastón\\nSeenka Media Intelligence'.",
+  "suggestedSubject": "string - asunto del email (null si no hay respuesta)"
 }
 
-REGLAS PARA LA RESPUESTA GENERADA:
-- Si pregunta quién es Seenka: Explica brevemente que somos plataforma de inteligencia publicitaria, monitoreamos inversión en medios de sus competidores y el mercado
-- Si muestra interés: Propone una llamada de 15 min para mostrarle datos de su industria
-- Si dice "no es momento": Responde amable, ofrece retomar en el futuro, no insistas
-- Si no está interesado: Cierra amablemente, no generes respuesta (action: close_lost)
-- Si pide más info: Comparte valor sobre lo que podemos mostrarle de sus competidores
-- Si reenvía a otro: Agradece y pide el contacto correcto
+CÓMO RESPONDER SEGÚN LA SITUACIÓN:
+- '¿Quiénes son?' / '¿De qué me sirve?': Explicá que Seenka monitorea qué comunican las marcas en medios (TV, digital, radio) en tiempo real. Ofrecé $500 USD en créditos para que lo explore con su equipo.
+- Muestra interés: Proponé una charla de 15 min para mostrarle datos de su industria
+- 'No es el momento': Respondé amable, dejá la puerta abierta, no insistas
+- No interesado / muy negativo: action close_lost, generatedResponse null
+- Pide más info: Ofrecé mandarle datos concretos de sus clientes o competencia
 
-Responde SOLO el JSON, sin markdown ni explicaciones adicionales.`,
+Respondé SOLO el JSON, sin markdown ni texto extra.`,
       maxTokens: 1000
     })
 
