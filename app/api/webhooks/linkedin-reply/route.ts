@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
 
     // Unipile sends different event types — we only care about new messages
     const eventType = payload.event || payload.type || ""
-    if (eventType && !["messaging.message.created", "message.received", "new_message"].includes(eventType)) {
+    if (eventType && !["messaging.message.created", "message.received", "message_received", "new_message"].includes(eventType)) {
       return NextResponse.json({ status: "ignored", event: eventType })
     }
 
