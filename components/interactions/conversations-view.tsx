@@ -219,6 +219,35 @@ export function ConversationsView({ interactions, queueItems, champions, loadedA
     }
   }
 
+  // Rewrite with Gastón
+  const [rewriting, setRewriting] = useState(false)
+
+  const handleRewrite = async () => {
+    if (!directMsg.trim() || !selected) return
+    setRewriting(true)
+    try {
+      const res = await fetch("/api/ai/rewrite-message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          champion_id: selected.champion.id,
+          draft: directMsg.trim(),
+          channel: directChannel,
+        }),
+      })
+      const data = await res.json()
+      if (res.ok && data.rewritten) {
+        setDirectMsg(data.rewritten)
+      } else {
+        alert(data.error || "Error al reescribir")
+      }
+    } catch (err) {
+      console.error("Rewrite error:", err)
+    } finally {
+      setRewriting(false)
+    }
+  }
+
   // Auto-refresh every 30 seconds
   const [lastRefresh, setLastRefresh] = useState(loadedAt || new Date().toISOString())
   const [secondsUntilRefresh, setSecondsUntilRefresh] = useState(30)
@@ -445,12 +474,12 @@ export function ConversationsView({ interactions, queueItems, champions, loadedA
           {/* Direct send input */}
           <div className="flex-shrink-0 border-t bg-background px-4 py-3">
             <div className="flex items-end gap-2 max-w-2xl mx-auto">
-              <div className="flex-1">
+              <div className="flex-1 relative">
                 <Textarea
                   value={directMsg}
                   onChange={(e) => setDirectMsg(e.target.value)}
                   placeholder={`Escribir mensaje para ${selected.champion.name}...`}
-                  className="min-h-[44px] max-h-32 resize-none text-sm"
+                  className="min-h-[44px] max-h-32 resize-none text-sm pr-28"
                   rows={1}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
@@ -459,6 +488,18 @@ export function ConversationsView({ interactions, queueItems, champions, loadedA
                     }
                   }}
                 />
+                {directMsg.trim() && (
+                  <button
+                    type="button"
+                    onClick={handleRewrite}
+                    disabled={rewriting}
+                    className="absolute right-2 bottom-2 flex items-center gap-1 text-[11px] text-primary hover:text-primary/80 transition-colors disabled:opacity-50"
+                    title="Gastón reescribe tu mensaje"
+                  >
+                    {rewriting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                    <span>{rewriting ? "Reescribiendo..." : "Gastón, mejoralo"}</span>
+                  </button>
+                )}
               </div>
               <div className="flex items-center gap-1.5">
                 <button
