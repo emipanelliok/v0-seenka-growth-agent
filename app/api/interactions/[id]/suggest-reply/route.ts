@@ -1,8 +1,17 @@
 import { createClient } from "@/lib/supabase/server"
+import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { NextRequest, NextResponse } from "next/server"
 import { generateText } from "ai"
 
 export const maxDuration = 60
+
+// Admin client bypasses RLS — needed because interactions are created by webhook (service role)
+function getAdminClient() {
+  return createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+}
 
 export async function POST(
   _req: NextRequest,
@@ -10,24 +19,29 @@ export async function POST(
 ) {
   try {
     const { id } = await params
+
+    // Auth check only
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: "No autenticado" }, { status: 401 })
 
+    // Use admin client for data access (bypasses RLS)
+    const admin = getAdminClient()
+
     // Get the interaction
-    const { data: interaction, error: ixError } = await supabase
+    const { data: interaction, error: ixError } = await admin
       .from("interactions")
       .select("id, champion_id, message, reply_content, response, outcome, channel, efemeride_id, created_at")
       .eq("id", id)
       .single()
 
     if (ixError || !interaction) {
-      console.error("suggest-reply: interaction not found", id, ixError)
+      console.error("suggest-reply: interaction not found", id, ixError?.message)
       return NextResponse.json({ error: "Interacción no encontrada" }, { status: 404 })
     }
 
-    // Get champion separately
-    const { data: champion } = await supabase
+    // Get champion
+    const { data: champion } = await admin
       .from("champions")
       .select("id, name, company, role, email, linkedin_url")
       .eq("id", interaction.champion_id)
@@ -36,9 +50,9 @@ export async function POST(
     if (!champion) {
       return NextResponse.json({ error: "Champion no encontrado" }, { status: 404 })
     }
+
     const replyRaw = interaction.reply_content || interaction.response || ""
 
-    // Strip email signature and quoted text from the reply
     function stripReply(text: string): string {
       if (!text) return ""
       const lines = text.split("\n")
@@ -60,8 +74,8 @@ export async function POST(
 
     const replyClean = stripReply(replyRaw)
 
-    // Get conversation history for context
-    const { data: prevInteractions } = await supabase
+    // Get conversation history
+    const { data: prevInteractions } = await admin
       .from("interactions")
       .select("message, response, reply_content, outcome, created_at")
       .eq("champion_id", interaction.champion_id)
@@ -79,25 +93,24 @@ export async function POST(
       .join("\n\n")
 
     const prompt = `Sos Gastón, agente de inteligencia publicitaria de Seenka.
+Seenka monitorea en tiempo real qué están comunicando las marcas en TV, digital y radio en toda Latinoamérica.
 
 CONTEXTO:
 - Estás hablando con ${champion.name} (${champion.role || "ejecutivo"} en ${champion.company || "su empresa"})
-- Rol: ${champion.role || "ejecutivo"}
 - Canal: ${interaction.channel === "email" ? "email" : "LinkedIn"}
 
-HISTORIAL DE CONVERSACIÓN:
+HISTORIAL:
 ${historyText}
 
 RESPUESTA QUE RECIBISTE:
 ${replyClean}
 
 INSTRUCCIONES:
-- Respondé de forma natural y breve (máx 80 palabras)
-- Si pregunta "quiénes son" o "de qué sirve": explicá que Seenka es una plataforma de inteligencia publicitaria que monitorea en tiempo real qué están comunicando las marcas en TV, digital y radio en toda Latinoamérica. Mencioná que podés darle acceso con $500 USD en créditos para que lo explore con su equipo.
-- Si muestra interés: avanzá hacia agendar una conversación o mandar más info
-- Si es negativo o seco: respondé con curiosidad, no con defensiva
-- Español argentino con voseo
-- Sin emojis
+- Respondé natural y breve (máx 80 palabras)
+- Si pregunta "quiénes son" o "de qué sirve": explicá que Seenka monitorea qué comunican las marcas en medios en tiempo real. Ofrecé $500 USD en créditos para que lo explore con su equipo.
+- Si muestra interés: proponé charla de 15 min para mostrarle datos de su industria
+- Si es negativo o escéptico: respondé con curiosidad, no te pongas defensivo
+- Español argentino con voseo, sin emojis
 - Firmá como "Gastón\\nSeenka Media Intelligence"
 - Solo el mensaje, nada más`
 
@@ -111,7 +124,7 @@ INSTRUCCIONES:
     const message = text.trim()
 
     // Save to outreach_queue
-    const { data: queueItem, error: insertError } = await supabase
+    const { data: queueItem, error: insertError } = await admin
       .from("outreach_queue")
       .insert({
         champion_id: interaction.champion_id,
