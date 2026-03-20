@@ -30,6 +30,20 @@ export function GastonChatPanel({ open, onOpenChange }: GastonChatPanelProps) {
 
   const isLoading = status === "streaming" || status === "submitted"
 
+  // Debug: log messages structure
+  useEffect(() => {
+    if (messages.length > 0) {
+      console.log("[gaston-chat] messages:", JSON.stringify(messages.map(m => ({
+        id: m.id,
+        role: m.role,
+        parts: (m as any).parts?.map((p: any) => ({ type: p.type, text: p.text?.substring(0, 50) })),
+        content: typeof (m as any).content === "string" ? (m as any).content?.substring(0, 50) : undefined,
+        hasToolInvocations: !!(m as any).toolInvocations?.length,
+      })), null, 2))
+      console.log("[gaston-chat] status:", status)
+    }
+  }, [messages, status])
+
   // Auto-scroll to bottom
   useEffect(() => {
     if (scrollRef.current) {
