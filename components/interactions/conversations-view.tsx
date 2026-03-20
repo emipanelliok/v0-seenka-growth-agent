@@ -270,12 +270,11 @@ export function ConversationsView({ interactions, queueItems, champions, loadedA
     }
   }
 
-  // Auto-refresh every 30 seconds
-  const [lastRefresh, setLastRefresh] = useState(loadedAt || new Date().toISOString())
+  // Auto-refresh every 30 seconds — poll for new data without full page reload
   const [secondsUntilRefresh, setSecondsUntilRefresh] = useState(30)
+  const [newDataAvailable, setNewDataAvailable] = useState(false)
 
   useEffect(() => {
-    setLastRefresh(loadedAt || new Date().toISOString())
     setSecondsUntilRefresh(30)
   }, [loadedAt])
 
@@ -283,15 +282,31 @@ export function ConversationsView({ interactions, queueItems, champions, loadedA
     const interval = setInterval(() => {
       setSecondsUntilRefresh((prev) => {
         if (prev <= 1) {
-          // Force full page reload to bypass Next.js cache
-          window.location.reload()
+          // Poll for new interactions/queue items silently
+          checkForNewData()
           return 30
         }
         return prev - 1
       })
     }, 1000)
     return () => clearInterval(interval)
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const checkForNewData = async () => {
+    try {
+      const res = await fetch("/api/interactions/poll")
+      if (res.ok) {
+        const data = await res.json()
+        const currentCount = interactions.length + localQueue.length
+        const newCount = (data.interactionCount || 0) + (data.queueCount || 0)
+        if (newCount !== currentCount) {
+          setNewDataAvailable(true)
+        }
+      }
+    } catch {
+      // Silent fail on poll
+    }
+  }
 
   // Scroll to bottom when switching conversations
   useEffect(() => {
@@ -432,11 +447,16 @@ export function ConversationsView({ interactions, queueItems, champions, loadedA
               <button
                 type="button"
                 onClick={() => window.location.reload()}
-                className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
-                title="Actualizar ahora"
+                className={cn(
+                  "flex items-center gap-1.5 text-[11px] transition-colors",
+                  newDataAvailable
+                    ? "text-primary font-medium animate-pulse"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+                title={newDataAvailable ? "Hay nuevos mensajes — click para actualizar" : "Actualizar ahora"}
               >
-                <RefreshCw className="h-3 w-3" />
-                <span>Actualiza en {secondsUntilRefresh}s</span>
+                <RefreshCw className={cn("h-3 w-3", newDataAvailable && "text-primary")} />
+                <span>{newDataAvailable ? "Nuevos mensajes — actualizar" : `Actualiza en ${secondsUntilRefresh}s`}</span>
               </button>
               <div className="flex items-center gap-1.5">
                 {selected.champion.email && (

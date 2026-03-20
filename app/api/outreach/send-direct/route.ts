@@ -84,23 +84,37 @@ export async function POST(request: NextRequest) {
       const accountId = process.env.UNIPILE_LINKEDIN_ACCOUNT_ID
 
       if (!unipileDsn || !unipileToken || !accountId) {
-        return NextResponse.json({ error: "Unipile no configurado" }, { status: 500 })
+        return NextResponse.json({ error: "Unipile no configurado — faltan UNIPILE_DSN, UNIPILE_API_TOKEN o UNIPILE_LINKEDIN_ACCOUNT_ID" }, { status: 500 })
       }
 
-      const slugMatch = champ.linkedin_url.match(/linkedin\.com\/in\/([^/?]+)/)
-      if (!slugMatch) return NextResponse.json({ error: "LinkedIn URL inválida" }, { status: 400 })
+      // Clean slug: remove trailing slashes
+      const slugMatch = champ.linkedin_url.match(/linkedin\.com\/in\/([^/?#]+)/)
+      if (!slugMatch) return NextResponse.json({ error: `LinkedIn URL inválida: ${champ.linkedin_url}` }, { status: 400 })
+
+      const slug = slugMatch[1].replace(/\/+$/, "")
+      console.log("[send-direct] LinkedIn slug extracted:", slug, "from URL:", champ.linkedin_url)
 
       // Get provider_id
-      const userRes = await fetch(`https://${unipileDsn}/api/v1/users/${slugMatch[1]}?account_id=${accountId}`, {
+      const userRes = await fetch(`https://${unipileDsn}/api/v1/users/${slug}?account_id=${accountId}`, {
         headers: { "X-API-KEY": unipileToken, "accept": "application/json" },
       })
 
       if (!userRes.ok) {
-        return NextResponse.json({ error: "No se pudo encontrar el perfil de LinkedIn" }, { status: 400 })
+        const errBody = await userRes.text().catch(() => "")
+        console.error("[send-direct] Unipile user lookup failed:", userRes.status, errBody)
+        return NextResponse.json({
+          error: `No se pudo encontrar el perfil de LinkedIn (slug: ${slug}, status: ${userRes.status})`,
+          details: errBody
+        }, { status: 400 })
       }
 
       const userData = await userRes.json()
       const providerId = userData.provider_id || userData.id
+      console.log("[send-direct] Unipile provider_id:", providerId)
+
+      if (!providerId) {
+        return NextResponse.json({ error: `Unipile no devolvió provider_id para ${slug}` }, { status: 400 })
+      }
 
       // Send message
       const formData = new FormData()
@@ -116,8 +130,11 @@ export async function POST(request: NextRequest) {
 
       if (!sendRes.ok) {
         const err = await sendRes.text().catch(() => "")
-        return NextResponse.json({ error: `LinkedIn falló: ${err}` }, { status: 500 })
+        console.error("[send-direct] Unipile send failed:", sendRes.status, err)
+        return NextResponse.json({ error: `LinkedIn falló (${sendRes.status}): ${err}` }, { status: 500 })
       }
+
+      console.log("[send-direct] LinkedIn message sent to", champ.name, "via slug:", slug)
     }
 
     // Log interaction

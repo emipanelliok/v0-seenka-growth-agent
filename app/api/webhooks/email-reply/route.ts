@@ -91,6 +91,10 @@ export async function POST(request: NextRequest) {
 
     console.log("[v0] Found champion:", matchedChampion.name, matchedChampion.email)
     
+    // Extract signature data from the FULL email (before stripping)
+    const fullBody = payload.body || payload.text || payload.content || payload.message || payload.data?.text || ""
+    await extractAndEnrichFromSignature(supabase, matchedChampion.id, fullBody)
+
     return await processReply(supabase, matchedChampion, replyContent, subject)
 
   } catch (error) {
@@ -410,10 +414,130 @@ function stripHtml(html: string): string {
 
 
 
+// Extract contact info from email signature and enrich champion profile
+async function extractAndEnrichFromSignature(supabase: any, championId: string, fullBody: string) {
+  try {
+    if (!fullBody || fullBody.length < 20) return
+
+    // Get current champion data to know what's missing
+    const { data: champ } = await supabase
+      .from("champions")
+      .select("phone, linkedin_url, title, company, website")
+      .eq("id", championId)
+      .single()
+
+    if (!champ) return
+
+    const updates: Record<string, string> = {}
+
+    // Extract phone numbers (Argentina, international, etc.)
+    if (!champ.phone) {
+      const phoneMatch = fullBody.match(/(?:(?:\+|00)\d{1,3}[\s.-]?)?\(?\d{2,4}\)?[\s.-]?\d{3,4}[\s.-]?\d{3,4}/)
+      // More specific: look for phone patterns near signature area
+      const signatureArea = extractSignatureArea(fullBody)
+      if (signatureArea) {
+        const phoneInSig = signatureArea.match(/(?:(?:Tel|Cel|Phone|Mobile|Ph|T|M)[.:]*\s*)?(\+?\d[\d\s()./-]{7,18}\d)/i)
+        if (phoneInSig) {
+          const cleanPhone = phoneInSig[1].replace(/[^\d+]/g, "")
+          if (cleanPhone.length >= 8) {
+            updates.phone = phoneInSig[1].trim()
+            console.log("[v0] Extracted phone from signature:", updates.phone)
+          }
+        }
+      }
+    }
+
+    // Extract LinkedIn URL
+    if (!champ.linkedin_url) {
+      const linkedinMatch = fullBody.match(/https?:\/\/(?:www\.)?linkedin\.com\/in\/[a-zA-Z0-9_-]+\/?/i)
+      if (linkedinMatch) {
+        updates.linkedin_url = linkedinMatch[0]
+        console.log("[v0] Extracted LinkedIn from signature:", updates.linkedin_url)
+      }
+    }
+
+    // Extract website
+    if (!champ.website) {
+      const signatureArea = extractSignatureArea(fullBody)
+      if (signatureArea) {
+        // Look for URLs that aren't linkedin/google/social media
+        const urlMatch = signatureArea.match(/https?:\/\/(?:www\.)?(?!linkedin|facebook|twitter|instagram|google|outlook|microsoft)[a-zA-Z0-9][a-zA-Z0-9.-]+\.[a-z]{2,}[^\s)"]*/i)
+        if (urlMatch) {
+          updates.website = urlMatch[0]
+          console.log("[v0] Extracted website from signature:", updates.website)
+        }
+      }
+    }
+
+    // Extract title/role from signature
+    if (!champ.title) {
+      const signatureArea = extractSignatureArea(fullBody)
+      if (signatureArea) {
+        // Common patterns: "Name\nTitle\nCompany" or "Name | Title | Company"
+        const titlePatterns = [
+          /(?:^|\n)\s*(?:CEO|CTO|COO|CFO|CMO|VP|Director|Head|Manager|Gerente|Jefe|Coordinador|Líder|Fundador|Co-?Founder|Partner|Socio|Analista|Ejecutiv[oa]|Responsable|Lead|Senior|Sr\.?|Jr\.?)[^\n]{0,60}/im,
+          /(?:Cargo|Position|Title|Rol)[:\s]+([^\n]+)/i,
+        ]
+        for (const pattern of titlePatterns) {
+          const match = signatureArea.match(pattern)
+          if (match) {
+            const title = (match[1] || match[0]).trim().replace(/^[\s|·—-]+/, "").trim()
+            if (title.length > 3 && title.length < 80) {
+              updates.title = title
+              console.log("[v0] Extracted title from signature:", updates.title)
+              break
+            }
+          }
+        }
+      }
+    }
+
+    // Apply updates if any
+    if (Object.keys(updates).length > 0) {
+      const { error } = await supabase
+        .from("champions")
+        .update(updates)
+        .eq("id", championId)
+
+      if (error) {
+        console.error("[v0] Error enriching champion from signature:", error)
+      } else {
+        console.log("[v0] Champion enriched from email signature:", Object.keys(updates).join(", "))
+      }
+    }
+  } catch (err) {
+    console.error("[v0] Error in extractAndEnrichFromSignature:", err)
+  }
+}
+
+// Extract the signature portion of an email (after -- or last block of text)
+function extractSignatureArea(body: string): string | null {
+  // Try standard signature delimiter
+  const sigDelimiter = body.indexOf("\n-- \n")
+  if (sigDelimiter !== -1) {
+    return body.substring(sigDelimiter)
+  }
+  const sigDelimiter2 = body.indexOf("\n--\n")
+  if (sigDelimiter2 !== -1) {
+    return body.substring(sigDelimiter2)
+  }
+
+  // Try "---" separator
+  const dashSep = body.lastIndexOf("\n---")
+  if (dashSep !== -1 && dashSep > body.length * 0.4) {
+    return body.substring(dashSep)
+  }
+
+  // Fallback: last 30% of the email usually contains the signature
+  const lines = body.split("\n")
+  const startLine = Math.floor(lines.length * 0.6)
+  return lines.slice(startLine).join("\n")
+}
+
 // GET endpoint to test webhook is working
 export async function GET() {
-  return NextResponse.json({ 
-    status: "ok", 
+  return NextResponse.json({
+    status: "ok",
     endpoint: "/api/webhooks/email-reply",
     description: "POST email replies here to track responses and advance sequences"
   })
