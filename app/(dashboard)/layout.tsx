@@ -2,6 +2,7 @@ import React from "react"
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
+import { GastonChatButton } from "@/components/chat/gaston-chat-button"
 
 export default async function DashboardLayout({
   children,
@@ -21,6 +22,7 @@ export default async function DashboardLayout({
       <main className="flex-1 overflow-auto bg-background">
         {children}
       </main>
+      <GastonChatButton />
     </div>
   )
 }
