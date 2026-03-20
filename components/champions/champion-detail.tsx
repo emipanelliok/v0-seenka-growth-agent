@@ -700,307 +700,375 @@ export function ChampionDetail({ champion, triggers, interactions }: ChampionDet
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="profile" className="space-y-6">
-          {/* Clientes del Champion */}
-          <Card className="border-amber-200 dark:border-amber-800">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Package className="h-4 w-4" />
-                Clientes / Marcas que maneja
-              </CardTitle>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowAddClient(!showAddClient)}
-              >
-                {showAddClient ? "Cancelar" : "+ Agregar cliente"}
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {showAddClient && (
-                <div className="rounded-lg border border-dashed p-4 space-y-3">
-                  <div className="grid gap-1">
-                    <Label className="text-xs">Nombre del cliente *</Label>
-                    <div className="relative">
-                      <Input
-                        placeholder="Ej: Coca-Cola"
-                        value={newClientName}
-                        onChange={(e) => handleClientNameChange(e.target.value)}
-                        autoFocus
-                      />
-                      {isSearchingClient && (
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                          <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+        <TabsContent value="profile">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Columna izquierda — Info principal (2/3) */}
+            <div className="lg:col-span-2 space-y-6">
+
+              {/* Sobre — headline + summary */}
+              {(champion.headline || champion.summary) && (
+                <Card>
+                  <CardContent className="pt-5 space-y-2">
+                    {champion.headline && (
+                      <p className="text-sm font-medium text-foreground">{champion.headline}</p>
+                    )}
+                    {champion.summary && (
+                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">{champion.summary}</p>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Experiencia laboral */}
+              {champion.experiences && champion.experiences.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <Building className="h-4 w-4 text-muted-foreground" />
+                      Experiencia
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-0">
+                    {champion.experiences
+                      .filter(exp => exp.company || exp.title)
+                      .map((exp, i, arr) => (
+                      <div key={i} className={`flex gap-4 py-3 ${i < arr.length - 1 ? "border-b" : ""}`}>
+                        <div className="flex flex-col items-center pt-0.5">
+                          <div className={`h-2.5 w-2.5 rounded-full ${exp.is_current ? "bg-primary" : "bg-muted-foreground/30"}`} />
+                          {i < arr.length - 1 && <div className="w-px flex-1 bg-border mt-1" />}
                         </div>
-                      )}
-                    </div>
-                    {clientMatchPreview !== null && (
-                      <div className={`flex items-center gap-2 px-2 py-1.5 rounded text-xs mt-1 ${clientMatchPreview.found ? "bg-green-500/10 text-green-700" : "bg-muted text-muted-foreground"}`}>
-                        {clientMatchPreview.found ? (
-                          <>
-                            <span className="font-medium">{clientMatchPreview.entidad}</span>
-                            <span>·</span>
-                            <span>{clientMatchPreview.sector}</span>
-                            {clientMatchPreview.industria && (
-                              <>
-                                <span>·</span>
-                                <span>{clientMatchPreview.industria}</span>
-                              </>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm">{exp.title || exp.company}</p>
+                          {exp.title && exp.company && (
+                            <p className="text-sm text-muted-foreground">{exp.company}</p>
+                          )}
+                          <div className="flex items-center gap-2 mt-0.5">
+                            {(exp.start_date || exp.end_date) && (
+                              <p className="text-xs text-muted-foreground">
+                                {exp.start_date || "?"} - {exp.is_current ? "Presente" : exp.end_date || "?"}
+                              </p>
                             )}
-                          </>
-                        ) : (
-                          <span>No encontrado en el nomenclador, se guardará sin match</span>
+                            {exp.location && (
+                              <p className="text-xs text-muted-foreground">
+                                · {exp.location}
+                              </p>
+                            )}
+                          </div>
+                          {exp.description && (
+                            <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2">{exp.description}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Educación */}
+              {champion.educations && champion.educations.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <GraduationCap className="h-4 w-4 text-muted-foreground" />
+                      Educacion
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-0">
+                    {champion.educations.map((edu, i, arr) => (
+                      <div key={i} className={`py-3 ${i < arr.length - 1 ? "border-b" : ""}`}>
+                        <p className="font-medium text-sm">{edu.school}</p>
+                        {edu.degree && (
+                          <p className="text-sm text-muted-foreground">{edu.degree}{edu.field_of_study ? ` · ${edu.field_of_study}` : ""}</p>
+                        )}
+                        {(edu.start_date || edu.end_date) && (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {edu.start_date || "?"} - {edu.end_date || "?"}
+                          </p>
                         )}
                       </div>
-                    )}
-                  </div>
-                  <Button
-                    size="sm"
-                    onClick={handleAddClient}
-                    disabled={isSavingClient || !newClientName.trim()}
-                  >
-                    {isSavingClient ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : null}
-                    Guardar cliente
-                  </Button>
-                </div>
+                    ))}
+                  </CardContent>
+                </Card>
               )}
-              {championClients.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {championClients.map((client) => (
-                    <div key={client.id} className="rounded-lg border p-3 space-y-1 group relative">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium">{client.client_name}</p>
-                        <button
-                          onClick={() => handleDeleteClient(client.id)}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-                          title="Eliminar cliente"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
+
+              {/* Análisis de la Empresa */}
+              {companyData && (companyData.pain_points?.length || companyData.sales_angle) && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                      Análisis Comercial
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {companyData.pain_points && companyData.pain_points.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground mb-2">Pain Points</p>
+                        <div className="space-y-1.5">
+                          {companyData.pain_points.map((point, i) => (
+                            <div key={i} className="flex items-start gap-2 text-sm">
+                              <span className="text-primary mt-0.5">•</span>
+                              <span>{point}</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      {(client.matched_entidad || client.matched_sector || client.matched_industria) && (
-                        <div className="flex flex-wrap gap-1">
-                          {client.matched_entidad && (
-                            <Badge variant="outline" className="text-xs">{client.matched_entidad}</Badge>
-                          )}
-                          {client.matched_sector && (
-                            <Badge variant="secondary" className="text-xs">{client.matched_sector}</Badge>
-                          )}
-                          {client.matched_industria && (
-                            <Badge variant="secondary" className="text-xs">{client.matched_industria}</Badge>
+                    )}
+                    {companyData.sales_angle && (
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground mb-2">Angulo de venta</p>
+                        <p className="text-sm bg-primary/5 border border-primary/10 p-3 rounded-lg">{companyData.sales_angle}</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+
+            {/* Columna derecha — Sidebar (1/3) */}
+            <div className="space-y-6">
+
+              {/* Datos de contacto */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium">Contacto</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {champion.email && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="text-muted-foreground w-16 shrink-0">Email</span>
+                      <a href={`mailto:${champion.email}`} className="text-primary hover:underline truncate">{champion.email}</a>
+                    </div>
+                  )}
+                  {champion.phone && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="text-muted-foreground w-16 shrink-0">Tel</span>
+                      <span className="truncate">{champion.phone}</span>
+                    </div>
+                  )}
+                  {champion.linkedin_url && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="text-muted-foreground w-16 shrink-0">LinkedIn</span>
+                      <a href={champion.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate">
+                        Perfil
+                        <ExternalLink className="inline ml-1 h-3 w-3" />
+                      </a>
+                    </div>
+                  )}
+                  {champion.website_url && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="text-muted-foreground w-16 shrink-0">Web</span>
+                      <a href={champion.website_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate">{champion.website_url}</a>
+                    </div>
+                  )}
+                  {champion.country && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="text-muted-foreground w-16 shrink-0">País</span>
+                      <span>{champion.country}</span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Redes sociales */}
+              {champion.social_profiles && Object.keys(champion.social_profiles).length > 0 && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium">Redes Sociales</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {Object.entries(champion.social_profiles).map(([platform, data]: [string, any]) => (
+                      <a
+                        key={platform}
+                        href={data.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors text-sm group"
+                      >
+                        <span className="capitalize font-medium w-20">{platform === "twitterx" ? "Twitter/X" : platform}</span>
+                        <span className="text-muted-foreground truncate flex-1">{data.handle || data.url.split("/").pop()}</span>
+                        <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </a>
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Empresa */}
+              {companyData && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <Building className="h-4 w-4 text-muted-foreground" />
+                      Empresa
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <p className="font-medium text-sm">{companyData.name || champion.company}</p>
+                    {companyData.industry && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-muted-foreground w-16 shrink-0">Industria</span>
+                        <span>{companyData.industry}</span>
+                      </div>
+                    )}
+                    {companyData.sector && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-muted-foreground w-16 shrink-0">Sector</span>
+                        <span>{companyData.sector}</span>
+                      </div>
+                    )}
+                    {companyData.size && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-muted-foreground w-16 shrink-0">Tamaño</span>
+                        <Badge variant="secondary" className="text-xs">{companyData.size}</Badge>
+                      </div>
+                    )}
+                    {companyData.description && (
+                      <p className="text-xs text-muted-foreground pt-1 border-t">{companyData.description}</p>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Clientes / Marcas */}
+              <Card>
+                <CardHeader className="pb-3 flex flex-row items-center justify-between">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <Package className="h-4 w-4 text-muted-foreground" />
+                    Clientes / Marcas
+                  </CardTitle>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => setShowAddClient(!showAddClient)}
+                  >
+                    {showAddClient ? "Cancelar" : <><Plus className="h-3 w-3 mr-1" />Agregar</>}
+                  </Button>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {showAddClient && (
+                    <div className="rounded-lg border border-dashed p-3 space-y-2">
+                      <div className="relative">
+                        <Input
+                          placeholder="Ej: Coca-Cola"
+                          value={newClientName}
+                          onChange={(e) => handleClientNameChange(e.target.value)}
+                          autoFocus
+                          className="h-8 text-sm"
+                        />
+                        {isSearchingClient && (
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                          </div>
+                        )}
+                      </div>
+                      {clientMatchPreview !== null && (
+                        <div className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs ${clientMatchPreview.found ? "bg-green-500/10 text-green-700" : "bg-muted text-muted-foreground"}`}>
+                          {clientMatchPreview.found ? (
+                            <span>{clientMatchPreview.entidad} · {clientMatchPreview.sector}{clientMatchPreview.industria ? ` · ${clientMatchPreview.industria}` : ""}</span>
+                          ) : (
+                            <span>Sin match en nomenclador</span>
                           )}
                         </div>
                       )}
+                      <Button
+                        size="sm"
+                        className="h-7 text-xs w-full"
+                        onClick={handleAddClient}
+                        disabled={isSavingClient || !newClientName.trim()}
+                      >
+                        {isSavingClient && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+                        Guardar
+                      </Button>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  No hay clientes cargados. Agregá clientes para mejorar el match por industria en efemérides.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Summary/Headline */}
-          {(champion.headline || champion.summary) && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Sobre {champion.name}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {champion.headline && (
-                  <p className="text-sm font-medium text-foreground">{champion.headline}</p>
-                )}
-                {champion.summary && (
-                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">{champion.summary}</p>
-                )}
-                {champion.website_url && (
-                  <a
-                    href={champion.website_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center text-sm text-primary hover:underline"
-                  >
-                    <Globe className="mr-1 h-3 w-3" />
-                    {champion.website_url}
-                  </a>
-                )}
-                {champion.languages && champion.languages.length > 0 && (
-                  <div className="flex flex-wrap gap-1 pt-2">
-                    {champion.languages.map((lang, i) => (
-                      <Badge key={i} variant="secondary" className="text-xs">
-                        {lang}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-
-          {/* Experiences */}
-          {champion.experiences && champion.experiences.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Building className="h-4 w-4" />
-                  Experiencia
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {champion.experiences
-                  .filter(exp => exp.company || exp.title) // Solo mostrar experiencias con datos
-                  .map((exp, i) => (
-                  <div key={i} className="border-l-2 border-primary/20 pl-4">
-                    {exp.title ? (
-                      <p className="font-medium text-sm">{exp.title}</p>
-                    ) : null}
-                    {exp.company && (
-                      <p className={exp.title ? "text-sm text-muted-foreground" : "font-medium text-sm"}>
-                        {exp.company}
-                      </p>
-                    )}
-                    {exp.location && (
-                      <p className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Globe className="h-3 w-3" />
-                        {exp.location}
-                      </p>
-                    )}
-                    {(exp.start_date || exp.end_date) && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {exp.start_date || "?"} - {exp.is_current ? "Presente" : exp.end_date || "?"}
-                      </p>
-                    )}
-                    {exp.description && (
-                      <p className="text-xs text-muted-foreground mt-2 line-clamp-3">{exp.description}</p>
-                    )}
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Education */}
-          {champion.educations && champion.educations.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <GraduationCap className="h-4 w-4" />
-                  Educación
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {champion.educations.map((edu, i) => (
-                  <div key={i} className="border-l-2 border-accent/20 pl-4">
-                    <p className="font-medium text-sm">{edu.school}</p>
-                    {edu.degree && (
-                      <p className="text-sm text-muted-foreground">{edu.degree}</p>
-                    )}
-                    {edu.field_of_study && (
-                      <p className="text-xs text-muted-foreground">{edu.field_of_study}</p>
-                    )}
-                    {(edu.start_date || edu.end_date) && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {edu.start_date || "?"} - {edu.end_date || "?"}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Similar Profiles */}
-          {champion.similar_profiles && champion.similar_profiles.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Users className="h-4 w-4" />
-                  Perfiles Similares (Potenciales Champions)
-                </CardTitle>
-                <CardDescription>
-                  Personas que podrían ser relevantes para contactar
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {champion.similar_profiles.slice(0, 6).map((profile, i) => (
-                    <a
-                      key={i}
-                      href={profile.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-start gap-3 rounded-lg border p-3 hover:bg-muted/50 transition-colors"
-                    >
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-                        {profile.name.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm truncate">{profile.name}</p>
-                        {profile.headline && (
-                          <p className="text-xs text-muted-foreground line-clamp-2">{profile.headline}</p>
-                        )}
-                        {profile.location && (
-                          <p className="text-xs text-muted-foreground mt-1">{profile.location}</p>
-                        )}
-                      </div>
-                      <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    </a>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Company Analysis - Pain Points y Ángulo de Venta */}
-          {companyData && (companyData.pain_points?.length || companyData.sales_angle) && (
-            <Card className="border-primary/20">
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4" />
-                  Análisis de la Empresa
-                </CardTitle>
-                <CardDescription>
-                  Información para ventas generada por IA
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {companyData.pain_points && companyData.pain_points.length > 0 && (
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-2">Pain Points Identificados</p>
-                    <ul className="space-y-1">
-                      {companyData.pain_points.map((point, i) => (
-                        <li key={i} className="text-sm flex items-start gap-2">
-                          <span className="text-primary">•</span>
-                          {point}
-                        </li>
+                  )}
+                  {championClients.length > 0 ? (
+                    <div className="space-y-1.5">
+                      {championClients.map((client) => (
+                        <div key={client.id} className="flex items-center justify-between py-1.5 group">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-sm font-medium truncate">{client.client_name}</span>
+                            {client.matched_sector && (
+                              <Badge variant="secondary" className="text-[10px] shrink-0">{client.matched_sector}</Badge>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => handleDeleteClient(client.id)}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
                       ))}
-                    </ul>
-                  </div>
-                )}
-                {companyData.sales_angle && (
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-2">Ángulo de Venta Sugerido</p>
-                    <p className="text-sm bg-muted/50 p-3 rounded-lg">{companyData.sales_angle}</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
+                    </div>
+                  ) : !showAddClient && (
+                    <p className="text-xs text-muted-foreground">
+                      Sin clientes cargados
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
 
+              {/* Idiomas */}
+              {champion.languages && champion.languages.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium">Idiomas</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-1.5">
+                      {champion.languages.map((lang, i) => (
+                        <Badge key={i} variant="secondary" className="text-xs">{lang}</Badge>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
+              {/* Perfiles similares */}
+              {champion.similar_profiles && champion.similar_profiles.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <Users className="h-4 w-4 text-muted-foreground" />
+                      Perfiles Similares
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-1">
+                    {champion.similar_profiles.slice(0, 5).map((profile, i) => (
+                      <a
+                        key={i}
+                        href={profile.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 py-1.5 text-sm hover:text-primary transition-colors group"
+                      >
+                        <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center text-[10px] font-medium shrink-0">
+                          {profile.name.charAt(0)}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm truncate">{profile.name}</p>
+                          {profile.headline && (
+                            <p className="text-[11px] text-muted-foreground truncate">{profile.headline}</p>
+                          )}
+                        </div>
+                        <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 shrink-0" />
+                      </a>
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </div>
 
           {/* Empty state */}
-          {!champion.headline && !champion.summary && !champion.experiences?.length && !champion.educations?.length && !champion.similar_profiles?.length && (
-            <Card className="border-dashed">
+          {!champion.headline && !champion.summary && !champion.experiences?.length && !champion.educations?.length && !companyData && !champion.social_profiles && (
+            <Card className="border-dashed mt-6">
               <CardContent className="py-8 text-center text-muted-foreground">
                 No hay información enriquecida para este champion.
                 <br />
-                <span className="text-sm">Editá el champion y usá "Enriquecer desde LinkedIn" para obtener más datos.</span>
+                <span className="text-sm">Usá "Actualizar LinkedIn" para obtener más datos.</span>
               </CardContent>
             </Card>
           )}
