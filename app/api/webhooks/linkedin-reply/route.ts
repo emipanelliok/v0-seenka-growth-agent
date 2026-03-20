@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { generateText } from "ai"
 import { gateway } from "@ai-sdk/gateway"
+import { buildPlaybook } from "@/lib/gaston-playbook"
 
 // Webhook to receive LinkedIn messages from Unipile
 // POST /api/webhooks/linkedin-reply
@@ -114,11 +115,15 @@ async function processLinkedInReply(supabase: any, champion: any, messageText: s
     .limit(1)
     .single()
 
+  // Build playbook from past interactions
+  const playbook = await buildPlaybook(supabase)
+
   // Analyze with LLM
   const analysis = await analyzeLinkedInReply(
     messageText,
     champion,
-    lastOutreach?.message || lastInteraction?.message
+    lastOutreach?.message || lastInteraction?.message,
+    playbook
   )
 
   console.log("[linkedin-webhook] Analysis:", JSON.stringify(analysis, null, 2))
@@ -184,7 +189,8 @@ async function processLinkedInReply(supabase: any, champion: any, messageText: s
 async function analyzeLinkedInReply(
   messageText: string | null,
   champion: any,
-  lastMessageSent: string | null
+  lastMessageSent: string | null,
+  playbook: string = ""
 ) {
   if (!messageText) {
     return { intent: "unknown", sentiment: "neutral", action: "wait", reasoning: "No content", generatedResponse: null }
@@ -221,7 +227,7 @@ CÓMO RESPONDER:
 - 'No es el momento': Respondé amable, dejá la puerta abierta, no insistas.
 - No interesado / muy negativo: action close_lost, generatedResponse null.
 - IMPORTANTE: Siempre priorizá dar valor inmediato (créditos, datos) antes de pedir una reunión. La llamada es opcional, nunca el primer paso.
-
+${playbook}
 Respondé SOLO el JSON, sin markdown ni texto extra.`,
       maxTokens: 600,
     })

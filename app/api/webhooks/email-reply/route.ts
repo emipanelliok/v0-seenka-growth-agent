@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { generateText } from "ai"
 import { gateway } from "@ai-sdk/gateway"
+import { buildPlaybook } from "@/lib/gaston-playbook"
 
 // Webhook to receive email replies from Resend, Doppler, or Make
 // POST /api/webhooks/email-reply
@@ -136,12 +137,16 @@ async function processReply(supabase: any, matchedChampion: any, replyContent: s
       .limit(1)
       .single()
 
+    // Build playbook from past interactions
+    const playbook = await buildPlaybook(supabase)
+
     // Agentic LLM: Analyze reply and generate appropriate response
     const analysis = await analyzeAndGenerateResponse(
       replyContent,
       subject,
       championData,
-      lastOutreach?.message || lastInteraction?.message
+      lastOutreach?.message || lastInteraction?.message,
+      playbook
     )
 
     console.log("[v0] LLM Analysis:", JSON.stringify(analysis, null, 2))
@@ -266,7 +271,8 @@ async function analyzeAndGenerateResponse(
   replyContent: string | null,
   subject: string | null,
   champion: any,
-  lastMessageSent: string | null
+  lastMessageSent: string | null,
+  playbook: string = ""
 ): Promise<{
   intent: string
   sentiment: string
@@ -341,7 +347,7 @@ CÓMO RESPONDER SEGÚN LA SITUACIÓN:
 - 'No es el momento': Respondé amable, dejá la puerta abierta, no insistas.
 - No interesado / muy negativo: action close_lost, generatedResponse null.
 - IMPORTANTE: Siempre priorizá dar valor inmediato (créditos, datos) antes de pedir una reunión. La llamada es opcional, nunca el primer paso.
-
+${playbook}
 Respondé SOLO el JSON, sin markdown ni texto extra.`,
       maxTokens: 1000
     })

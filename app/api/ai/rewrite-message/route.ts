@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { generateText } from "ai"
 import { gateway } from "@ai-sdk/gateway"
+import { buildPlaybook } from "@/lib/gaston-playbook"
 
 export const maxDuration = 30
 
@@ -35,6 +36,9 @@ export async function POST(request: NextRequest) {
     const championClients = champ?.champion_clients?.map((c: any) => c.client_name).join(", ") || "no especificados"
     const isLinkedIn = channel === "linkedin"
 
+    // Build playbook from past interactions
+    const playbook = await buildPlaybook(admin)
+
     const { text } = await generateText({
       model: gateway("anthropic/claude-sonnet-4-20250514"),
       prompt: `Sos Gastón, agente de inteligencia publicitaria de Seenka. Seenka monitorea en tiempo real qué comunican las marcas en TV, digital y radio en Latinoamérica.
@@ -58,7 +62,7 @@ REESCRIBILO siguiendo estas reglas:
 - Si el borrador menciona una reunión, ofrecela como opcional, no como requisito
 ${isLinkedIn ? "- Sin firma (LinkedIn ya la muestra)" : "- Firmá como 'Gastón\\nSeenka Media Intelligence'"}
 - Mantené la intención del borrador pero hacelo más atractivo y natural
-
+${playbook}
 Respondé SOLO el mensaje reescrito, sin explicaciones ni comillas.`,
       maxTokens: 500,
     })
