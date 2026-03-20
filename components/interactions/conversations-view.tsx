@@ -206,6 +206,7 @@ export function ConversationsView({ interactions, queueItems, champions, loadedA
   const [sendError, setSendError] = useState("")
 
   const handleDirectSend = async () => {
+    console.log("[send] Channel:", directChannel, "Message:", directMsg.trim().substring(0, 50), "Champion:", selected?.champion?.name)
     if (!directMsg.trim() || !selected) return
     setSendingDirect(true)
     setSendStatus("sending")
@@ -270,19 +271,25 @@ export function ConversationsView({ interactions, queueItems, champions, loadedA
     }
   }
 
-  // Auto-refresh every 30 seconds — poll for new data without full page reload
+  // Auto-refresh — poll for new data without full page reload
+  // Use mounted flag to avoid hydration mismatch (server vs client render)
+  const [mounted, setMounted] = useState(false)
   const [secondsUntilRefresh, setSecondsUntilRefresh] = useState(30)
   const [newDataAvailable, setNewDataAvailable] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   useEffect(() => {
     setSecondsUntilRefresh(30)
   }, [loadedAt])
 
   useEffect(() => {
+    if (!mounted) return
     const interval = setInterval(() => {
       setSecondsUntilRefresh((prev) => {
         if (prev <= 1) {
-          // Poll for new interactions/queue items silently
           checkForNewData()
           return 30
         }
@@ -290,7 +297,7 @@ export function ConversationsView({ interactions, queueItems, champions, loadedA
       })
     }, 1000)
     return () => clearInterval(interval)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mounted]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const checkForNewData = async () => {
     try {
@@ -456,7 +463,7 @@ export function ConversationsView({ interactions, queueItems, champions, loadedA
                 title={newDataAvailable ? "Hay nuevos mensajes — click para actualizar" : "Actualizar ahora"}
               >
                 <RefreshCw className={cn("h-3 w-3", newDataAvailable && "text-primary")} />
-                <span>{newDataAvailable ? "Nuevos mensajes — actualizar" : `Actualiza en ${secondsUntilRefresh}s`}</span>
+                <span>{newDataAvailable ? "Nuevos mensajes — actualizar" : mounted ? `Actualiza en ${secondsUntilRefresh}s` : "Actualizar"}</span>
               </button>
               <div className="flex items-center gap-1.5">
                 {selected.champion.email && (
@@ -566,24 +573,30 @@ export function ConversationsView({ interactions, queueItems, champions, loadedA
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
-                  onClick={() => setDirectChannel(directChannel === "email" ? "linkedin" : "email")}
+                  onClick={() => {
+                    const next = directChannel === "email" ? "linkedin" : "email"
+                    console.log("[toggle] Channel:", next)
+                    setDirectChannel(next)
+                  }}
                   className={cn(
-                    "flex items-center justify-center h-9 w-9 rounded-md border transition-colors",
+                    "flex items-center justify-center h-9 px-2 rounded-md border transition-colors text-[11px] font-medium gap-1",
                     directChannel === "email"
                       ? "bg-blue-50 border-blue-200 text-blue-600"
                       : "bg-sky-50 border-sky-200 text-sky-600"
                   )}
-                  title={directChannel === "email" ? "Enviar por Email — click para cambiar" : "Enviar por LinkedIn — click para cambiar"}
+                  title={directChannel === "email" ? "Canal: Email — click para cambiar a LinkedIn" : "Canal: LinkedIn — click para cambiar a Email"}
                 >
-                  {directChannel === "email" ? <Mail className="h-4 w-4" /> : <Linkedin className="h-4 w-4" />}
+                  {directChannel === "email" ? <Mail className="h-3.5 w-3.5" /> : <Linkedin className="h-3.5 w-3.5" />}
+                  <span>{directChannel === "email" ? "Email" : "LinkedIn"}</span>
                 </button>
                 <Button
                   size="sm"
                   onClick={handleDirectSend}
                   disabled={!directMsg.trim() || sendingDirect}
-                  className="h-9 px-3"
+                  className="h-9 px-3 gap-1.5"
                 >
                   {sendingDirect ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  <span className="text-xs">Enviar</span>
                 </Button>
               </div>
             </div>
