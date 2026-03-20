@@ -200,14 +200,15 @@ export function ConversationsView({ interactions, queueItems, champions, loadedA
     const interval = setInterval(() => {
       setSecondsUntilRefresh((prev) => {
         if (prev <= 1) {
-          router.refresh()
+          // Force full page reload to bypass Next.js cache
+          window.location.reload()
           return 30
         }
         return prev - 1
       })
     }, 1000)
     return () => clearInterval(interval)
-  }, [router])
+  }, [])
 
   // Scroll to bottom when switching conversations
   useEffect(() => {
@@ -347,7 +348,7 @@ export function ConversationsView({ interactions, queueItems, champions, loadedA
             <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={() => { router.refresh(); setSecondsUntilRefresh(30) }}
+                onClick={() => window.location.reload()}
                 className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
                 title="Actualizar ahora"
               >
