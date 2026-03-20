@@ -29,8 +29,11 @@ export async function POST(request: Request) {
     // Get or create conversation
     let convId = conversationId
     if (!convId) {
-      const firstUserMsg = messages.find((m: any) => m.role === "user")?.content || ""
-      const title = firstUserMsg.substring(0, 60) || "Nueva conversación"
+      const firstUserMsgObj = messages.find((m: any) => m.role === "user")
+      const firstUserContent = typeof firstUserMsgObj?.content === "string"
+        ? firstUserMsgObj.content
+        : firstUserMsgObj?.parts?.find((p: any) => p.type === "text")?.text || ""
+      const title = firstUserContent.substring(0, 60) || "Nueva conversación"
 
       const { data: conv } = await admin
         .from("chat_conversations")
@@ -44,10 +47,14 @@ export async function POST(request: Request) {
     // Save user message
     const lastUserMsg = messages[messages.length - 1]
     if (lastUserMsg?.role === "user" && convId) {
+      // AI SDK v6 may send content as string or parts array
+      const userContent = typeof lastUserMsg.content === "string"
+        ? lastUserMsg.content
+        : lastUserMsg.parts?.find((p: any) => p.type === "text")?.text || ""
       await admin.from("chat_messages").insert({
         conversation_id: convId,
         role: "user",
-        content: lastUserMsg.content,
+        content: userContent,
       })
     }
 
@@ -127,11 +134,7 @@ IMPORTANTE: Siempre priorizá dar valor inmediato. Los créditos de $500 USD (se
       },
     })
 
-    return result.toDataStreamResponse({
-      headers: {
-        "X-Conversation-Id": convId || "",
-      },
-    })
+    return result.toUIMessageStreamResponse()
 
   } catch (error) {
     console.error("[chat] Error:", error)

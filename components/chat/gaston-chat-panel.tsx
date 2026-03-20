@@ -23,16 +23,12 @@ export function GastonChatPanel({ open, onOpenChange }: GastonChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const { messages, isLoading, setMessages, append } = useChat({
+  const { messages, status, setMessages, sendMessage } = useChat({
     api: "/api/chat",
     body: { conversationId },
-    onResponse: (response) => {
-      const convId = response.headers.get("X-Conversation-Id")
-      if (convId && !conversationId) {
-        setConversationId(convId)
-      }
-    },
   })
+
+  const isLoading = status === "streaming" || status === "submitted"
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -54,22 +50,22 @@ export function GastonChatPanel({ open, onOpenChange }: GastonChatPanelProps) {
     setLocalInput("")
   }
 
-  const sendMessage = (text: string) => {
+  const doSend = (text: string) => {
     const trimmed = text.trim()
     if (!trimmed || isLoading) return
     setLocalInput("")
-    append({ role: "user", content: trimmed })
+    sendMessage({ text: trimmed })
   }
 
   const handleFormSubmit = (e: FormEvent) => {
     e.preventDefault()
-    sendMessage(localInput)
+    doSend(localInput)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
-      sendMessage(localInput)
+      doSend(localInput)
     }
   }
 
@@ -106,15 +102,15 @@ export function GastonChatPanel({ open, onOpenChange }: GastonChatPanelProps) {
         {/* Messages */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto">
           {messages.length === 0 ? (
-            <EmptyState onSuggestionClick={sendMessage} />
+            <EmptyState onSuggestionClick={doSend} />
           ) : (
             <div className="py-4">
               {messages.map((msg) => (
                 <ChatMessage
                   key={msg.id}
                   role={msg.role as any}
-                  content={msg.content}
-                  toolInvocations={msg.toolInvocations}
+                  content={typeof msg.content === "string" ? msg.content : ""}
+                  toolInvocations={(msg as any).toolInvocations || (msg as any).parts?.filter((p: any) => p.type === "tool-invocation")}
                 />
               ))}
               {isLoading && messages[messages.length - 1]?.role === "user" && (
@@ -144,7 +140,7 @@ export function GastonChatPanel({ open, onOpenChange }: GastonChatPanelProps) {
               onKeyDown={handleKeyDown}
               placeholder="Preguntale a Gastón..."
               disabled={isLoading}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 flex-1"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 flex-1"
             />
             <Button
               type="submit"
