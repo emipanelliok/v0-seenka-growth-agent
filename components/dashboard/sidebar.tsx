@@ -14,9 +14,7 @@ import {
   LogOut,
   Settings,
   Upload,
-  GitBranch,
   CalendarDays,
-  Inbox,
   ChevronRight,
   BookOpen,
 } from "lucide-react"
@@ -42,19 +40,9 @@ const navItems = [
     icon: Zap,
   },
   {
-    title: "Secuencias",
-    href: "/secuencias",
-    icon: GitBranch,
-  },
-  {
     title: "Efemerides",
     href: "/efemerides",
     icon: CalendarDays,
-  },
-  {
-    title: "Bandeja de Salida",
-    href: "/bandeja",
-    icon: Inbox,
   },
   {
     title: "Interacciones",
